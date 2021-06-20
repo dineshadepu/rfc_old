@@ -19,3 +19,4 @@ config*.json*
 outputs/
 manuscript/figures/
 manuscript/auto/
+*hdf5
