@@ -61,20 +61,120 @@
 
 
 
-\section{Mathematical details}
-\label{sec:sph}
+\section{Fluid mechanics}
+\label{sec:fluid-mechanics}
+
+
+
+\section{Rigid body dynamics}
+\label{sec:rbd-dynamics}
+
+
+
+
+\section{Rigid body contact model}
+\label{sec:rbd-contact-model}
+
+In the SPH literature there are a few ways to model the contact
+between rigid bodies. Few ways to note are
+
+\begin{itemize}
+\item \citet{albano2016modelling} models using pure elastic impingement force
+% Development of the Resolved Fluid-Solid SPH Coupling using Rigid Body Dynamics
+\item \citet{choidevelopment} models using DEM
+\item \citet{zhan2020sph} uses hybrid contact model
+\item \citet{} uses hybrid contact model
+\end{itemize}
+A  SPH  framework  for  dynamic interaction  between  soil  and  rigid  body  system  with  hybrid contact   metho
+
+
+\section{Rigid fluid coupling}
+\label{sec:rf-coupling}
 
 
 
 
 \section{Results and discussion}
 \label{sec:results}
+\citet{wu2014two} has experimental solution to cube sinking and cube floating
+in a tank.
+
+\subsection{Cylinders collapsing under gravity in a tank}
+\label{sec:cylinders-collapsing-dem}
+
+This benchmark is taken from \citet{chen2019coupled} and
+\citet{wang2019numerical}. This is to validate the rigid contact model.
+
+Six layers of solid cylinders are stacked, and then suddenly released under
+gravity. This is done by 2009 Zhang and Canelas 2016.
 
 
-\subsection{Benchmark 1}
-\label{sec:benchmark-1}
+\subsection{A block of density 2000 freely falling in to a steady tank}
+\label{sec:2000-density-inside-tank}
+
+This benchmark is taken from \citet{qiu20173d}.
+
+A water tank of 150 $mm$ $\times$ 140 $mm$ $\times$ 140 $mm$ and the water
+depth in the tank was 131 $mm$. The cube with a side length of 20 $mm$. The
+density of the cube is 2120 $kg m^{-3}$. The cube is placed half way before
+the release into the fluid. The spring stiffness coefficient of 1 $\times$
+$10^{5}$ $N m^{-1}$.
 
 
+\subsection{A block of density $800.52$ floating in a steady tank}
+\label{sec:800-density-floating}
+
+This benchmark is taken from \citet{qiu20173d}, \citet{wang2019numerical}.
+
+A water tank of 150 mm $\times$ 140 mm $\times$ 140 mm and the water depth in
+the tank was 52 $mm$. A rectangular wooden block (with a width of 48 mm,
+length of 49 mm, height 24mm) whose density is 800.52 kg$m^{-1}$ is
+released from the bottom of the tank. We compare the vertical displacement of
+the center of mass of the cube.
+
+
+\subsection{Dam break with body transport}
+\label{sec:dam-break-with-body-transport}
+
+This benchmark is taken from \citet{wang2019numerical}.
+
+Here we simulate a solid body transport in a dam break.
+
+
+\subsection{Dam break with multiple body transport}
+\label{sec:dam-break-with-multiple-body-transport}
+
+This benchmark is taken from \citet{wang2019numerical}.
+
+Here we simulate a transport of multiple bodies in a dam break.
+
+
+\subsection{Cylinders in water collapsed under gravity}
+\label{sec:cylinders-in-water-collapsed-under-gravity}
+
+This benchmark is taken from \citet{chen2019coupled}.
+
+Here we simulate a collapse of cylinders submerged in a water under gravity.
+
+
+\subsection{Single cube transport in 3d dam break with out any obstructions}
+\label{sec:single-cube-transport-in-3d-dam-break-with-out-any-obstructions}
+
+This benchmark is taken from \citet{ji2019coupled}.
+
+A single body transport under 3d dam break. Here we don't have any
+obstructions. This is done in Canelas 2016 DCDEM paper. This is different from
+Amicarelli paper.
+
+
+\subsection{Three cube transport in 3d dam break with out any obstructions}
+\label{sec:three-cube-transport-in-3d-dam-break-with-out-any-obstructions}
+
+This benchmark is taken from \citet{ji2019coupled}.
+
+Three cubes transport under 3d dam break. Here we don't have any obstructions.
+This is done in Canelas 2016 DCDEM paper. This is different from Amicarelli
+paper.
 
 
 \section{Conclusions}
