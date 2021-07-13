@@ -89,9 +89,9 @@ def get_fluid_tank_3d(xf, yf, zf, tank_length, tank_height, tank_layers,
     yt_bottom += np.min(yt_front) - np.min(yt_front)
     zt_bottom += np.min(zt_left) - np.max(zt_bottom) - tank_spacing * 1
 
-    xt = np.concatenate([xt_left, xt_right, xt_front, xt_back, xt_bottom])
-    yt = np.concatenate([yt_left, yt_right, yt_front, yt_back, yt_bottom])
-    zt = np.concatenate([zt_left, zt_right, zt_front, zt_back, zt_bottom])
+    xt = xt_bottom
+    yt = yt_bottom
+    zt = zt_bottom
 
     return xt, yt, zt
 
@@ -169,9 +169,9 @@ class RigidFluidCoupling(Application):
         z_obstacle_2 += (np.min(zt) - np.min(z_obstacle_2) + (self.tank_length - 1.) *
                          self.tank_spacing)
 
-        xt = np.concatenate([xt, x_obstacle_1, x_obstacle_2])
-        yt = np.concatenate([yt, y_obstacle_1, y_obstacle_2])
-        zt = np.concatenate([zt, z_obstacle_1, z_obstacle_2])
+        xt = np.concatenate([xt])
+        yt = np.concatenate([yt])
+        zt = np.concatenate([zt])
 
         m_fluid = self.fluid_density * self.fluid_spacing**self.dim
 
@@ -236,6 +236,7 @@ class RigidFluidCoupling(Application):
                                   rho=self.body_density,
                                   m_fluid=m_fluid,
                                   rad_s=self.body_spacing / 2.)
+        body.z[:] += self.body_spacing/2.
         body_id = np.zeros(len(xb), dtype=int)
         body.add_property('body_id', type='int', data=body_id)
         body.add_constant('max_tng_contacts_limit', 30)
@@ -243,17 +244,18 @@ class RigidFluidCoupling(Application):
 
         self.scheme.setup_properties([fluid, tank, body, wall])
 
-
         # body.y[:] += 0.5
         body.m_fsi[:] += self.fluid_density * self.body_spacing**self.dim
         body.rho_fsi[:] = 1000
-        return [fluid, tank, body, wall]
+        return [tank, body]
 
     def create_scheme(self):
         rfc = RigidFluidCouplingScheme(rigid_bodies=["body"],
-                                       fluids=['fluid'],
-                                       boundaries=['tank', 'wall'],
+                                       fluids=None,
+                                       boundaries=['tank'],
                                        dim=3,
+                                       kn=1e5,
+                                       en=0.1,
                                        rho0=self.fluid_density,
                                        p0=self.p0,
                                        c0=self.c0,
@@ -267,7 +269,8 @@ class RigidFluidCoupling(Application):
         scheme = self.scheme
         scheme.configure(h=self.h)
 
-        dt = 0.125 * self.fluid_spacing * self.hdx / (self.co * 1.1)
+        # dt = 0.125 * self.fluid_spacing * self.hdx / (self.co * 1.1)
+        dt = 1e-5
         print("DT: %s" % dt)
         tf = 0.01
 

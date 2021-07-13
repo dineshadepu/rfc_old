@@ -195,7 +195,7 @@ class RigidBodyLVC(Equation):
 
     1. Simulation of solid-fluid mixture flow using moving particle methods
     """
-    def __init__(self, dest, sources, kn=1e5, mu=0.5, en=0.8):
+    def __init__(self, dest, sources, kn=1e5, mu=0.45, en=0.8):
         self.kn = kn
         self.kt = 2. / 7. * kn
         self.kt_1 = 1. / self.kt
@@ -246,7 +246,7 @@ class RigidBodyLVC(Equation):
                 vt_y = vr_y - vn_y
                 vt_z = vr_z - vn_z
                 # magnitude of the tangential velocity
-                # vt_magn = (vt_x * vt_x + vt_y * vt_y + vt_z * vt_z)**0.5
+                vt_magn = (vt_x * vt_x + vt_y * vt_y + vt_z * vt_z)**0.5
 
                 m_eff = d_m[d_idx] * s_m[s_idx] / (d_m[d_idx] + s_m[s_idx])
                 eta_n = self.alpha * sqrt(m_eff)
@@ -282,9 +282,9 @@ class RigidBodyLVC(Equation):
                             break
                 # if the particle is not been tracked then assign an index in
                 # tracking history.
-                # ft_x = 0.
-                # ft_y = 0.
-                # ft_z = 0.
+                ft_x = 0.
+                ft_y = 0.
+                ft_z = 0.
 
                 if found == 0:
                     found_at = q1
@@ -292,89 +292,83 @@ class RigidBodyLVC(Equation):
                     d_total_tng_contacts[d_idx] += 1
                     d_tng_idx_dem_id[found_at] = s_dem_id[s_idx]
 
-                # # implies we are tracking the particle
-                # else:
-                #     ####################################################
-                #     # rotate the tangential force to the current plane #
-                #     ####################################################
-                #     ft_magn = (d_tng_fx[found_at]**2. + d_tng_fy[found_at]**2. +
-                #                d_tng_fz[found_at]**2.)**0.5
-                #     ft_dot_nij = (d_tng_fx[found_at] * nx +
-                #                   d_tng_fy[found_at] * ny +
-                #                   d_tng_fz[found_at] * nz)
-                #     # tangential force projected onto the current normal of the
-                #     # contact place
-                #     ft_px = d_tng_fx[found_at] - ft_dot_nij * nx
-                #     ft_py = d_tng_fy[found_at] - ft_dot_nij * ny
-                #     ft_pz = d_tng_fz[found_at] - ft_dot_nij * nz
+                # implies we are tracking the particle
+                else:
+                    ####################################################
+                    # rotate the tangential force to the current plane #
+                    ####################################################
+                    ft_magn = (d_tng_fx[found_at]**2. + d_tng_fy[found_at]**2. +
+                               d_tng_fz[found_at]**2.)**0.5
+                    ft_dot_nij = (d_tng_fx[found_at] * nx +
+                                  d_tng_fy[found_at] * ny +
+                                  d_tng_fz[found_at] * nz)
+                    # tangential force projected onto the current normal of the
+                    # contact place
+                    ft_px = d_tng_fx[found_at] - ft_dot_nij * nx
+                    ft_py = d_tng_fy[found_at] - ft_dot_nij * ny
+                    ft_pz = d_tng_fz[found_at] - ft_dot_nij * nz
 
-                #     ftp_magn = (ft_px**2. + ft_py**2. + ft_pz**2.)**0.5
-                #     if ftp_magn > 0:
-                #         one_by_ftp_magn = 1. / ftp_magn
+                    ftp_magn = (ft_px**2. + ft_py**2. + ft_pz**2.)**0.5
+                    if ftp_magn > 0:
+                        one_by_ftp_magn = 1. / ftp_magn
 
-                #         tx = ft_px * one_by_ftp_magn
-                #         ty = ft_py * one_by_ftp_magn
-                #         tz = ft_pz * one_by_ftp_magn
-                #     else:
-                #         if vt_magn > 0.:
-                #             tx = -vt_x / vt_magn
-                #             ty = -vt_y / vt_magn
-                #             tz = -vt_z / vt_magn
-                #         else:
-                #             tx = 0.
-                #             ty = 0.
-                #             tz = 0.
+                        tx = ft_px * one_by_ftp_magn
+                        ty = ft_py * one_by_ftp_magn
+                        tz = ft_pz * one_by_ftp_magn
+                    else:
+                        # if vt_magn > 0.:
+                        #     tx = -vt_x / vt_magn
+                        #     ty = -vt_y / vt_magn
+                        #     tz = -vt_z / vt_magn
+                        # else:
+                        #     tx = 0.
+                        #     ty = 0.
+                        #     tz = 0.
+                        tx = 0.
+                        ty = 0.
+                        tz = 0.
 
-                #     # rescale the projection by the magnitude of the
-                #     # previous tangential force, which gives the tangential
-                #     # force on the current plane
-                #     ft_x = ft_magn * tx
-                #     ft_y = ft_magn * ty
-                #     ft_z = ft_magn * tz
+                    # rescale the projection by the magnitude of the
+                    # previous tangential force, which gives the tangential
+                    # force on the current plane
+                    ft_x = ft_magn * tx
+                    ft_y = ft_magn * ty
+                    ft_z = ft_magn * tz
 
-                #     # (*) check against Coulomb criterion
-                #     # Tangential force magnitude due to displacement
-                #     ftr_magn = (ft_x * ft_x + ft_y * ft_y + ft_z * ft_z)**(0.5)
-                #     fn_magn = (fn_x * fn_x + fn_y * fn_y + fn_z * fn_z)**(0.5)
+                    # (*) check against Coulomb criterion
+                    # Tangential force magnitude due to displacement
+                    ftr_magn = (ft_x * ft_x + ft_y * ft_y + ft_z * ft_z)**(0.5)
+                    fn_magn = (fn_x * fn_x + fn_y * fn_y + fn_z * fn_z)**(0.5)
 
-                #     # we have to compare with static friction, so
-                #     # this mu has to be static friction coefficient
-                #     fn_mu = self.mu * fn_magn
+                    # we have to compare with static friction, so
+                    # this mu has to be static friction coefficient
+                    fn_mu = self.mu * fn_magn
 
-                #     if ftr_magn >= fn_mu:
-                #         # rescale the tangential displacement
-                #         d_tng_fx[found_at] = fn_mu * tx
-                #         d_tng_fy[found_at] = fn_mu * ty
-                #         d_tng_fz[found_at] = fn_mu * tz
+                    if ftr_magn >= fn_mu:
+                        # rescale the tangential displacement
+                        d_tng_fx[found_at] = fn_mu * tx
+                        d_tng_fy[found_at] = fn_mu * ty
+                        d_tng_fz[found_at] = fn_mu * tz
 
-                #         # set the tangential force to static friction
-                #         # from Coulomb criterion
-                #         ft_x = fn_mu * tx
-                #         ft_y = fn_mu * ty
-                #         ft_z = fn_mu * tz
+                        # set the tangential force to static friction
+                        # from Coulomb criterion
+                        ft_x = fn_mu * tx
+                        ft_y = fn_mu * ty
+                        ft_z = fn_mu * tz
+                    else:
+                        d_tng_fx[found_at] = ft_x
+                        d_tng_fy[found_at] = ft_y
+                        d_tng_fz[found_at] = ft_z
 
-                d_tng_fx[found_at] -= self.kt * vt_x * dt
-                d_tng_fy[found_at] -= self.kt * vt_y * dt
-                d_tng_fz[found_at] -= self.kt * vt_z * dt
+                d_fx[d_idx] += fn_x + ft_x
+                d_fy[d_idx] += fn_y + ft_y
+                d_fz[d_idx] += fn_z + ft_z
 
-                # check for Coloumb friction
-                fn_magn = (fn_x * fn_x + fn_y * fn_y + fn_z * fn_z)**(0.5)
-                fn_mu = self.mu * fn_magn
+                d_tng_fx[found_at] += self.kt * vt_x * dt
+                d_tng_fy[found_at] += self.kt * vt_y * dt
+                d_tng_fz[found_at] += self.kt * vt_z * dt
 
-                ft_magn = (d_tng_fx[found_at] * d_tng_fx[found_at] +
-                           d_tng_fy[found_at] * d_tng_fy[found_at] +
-                           d_tng_fz[found_at] * d_tng_fz[found_at])
-
-                if ft_magn >= fn_magn:
-                    d_tng_fx[found_at] = fn_mu * d_tng_fx[found_at] / ft_magn
-                    d_tng_fy[found_at] = fn_mu * d_tng_fy[found_at] / ft_magn
-                    d_tng_fz[found_at] = fn_mu * d_tng_fz[found_at] / ft_magn
-
-                d_fx[d_idx] += fn_x + d_tng_fx[found_at]
-                d_fy[d_idx] += fn_y + d_tng_fy[found_at]
-                d_fz[d_idx] += fn_z + d_tng_fz[found_at]
-
-                # # torque = n cross F
+                # torque = n cross F
                 # d_torx[d_idx] += (ny * d_tng_fz[found_at] -
                 #                   nz * d_tng_fy[found_at]) * a_i
                 # d_tory[d_idx] += (nz * d_tng_fx[found_at] -

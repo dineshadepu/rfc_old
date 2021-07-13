@@ -38,12 +38,28 @@ from rigid_body_common import (set_total_mass, set_center_of_mass,
                                BodyForce, SumUpExternalForces,
                                normalize_R_orientation, RigidBodyLVC)
 
-from dem import UpdateTangentialContactsLVCDisplacement
+from dem import UpdateTangentialContactsLVCDisplacement, UpdateTangentialContactsLVCForce
 
 # compute the boundary particles
 from boundary_particles import (get_boundary_identification_etvf_equations,
                                 add_boundary_identification_properties)
 from numpy import sin, cos
+
+
+class ClampWallPressure(Equation):
+    r"""Clamp the wall pressure to non-negative values.
+    """
+    def post_loop(self, d_idx, d_p):
+        if d_p[d_idx] < 0.0:
+            d_p[d_idx] = 0.0
+
+
+class ClampWallPressureFSI(Equation):
+    r"""Clamp the wall pressure to non-negative values.
+    """
+    def post_loop(self, d_idx, d_p_fsi):
+        if d_p_fsi[d_idx] < 0.0:
+            d_p_fsi[d_idx] = 0.0
 
 
 class ContinuityEquation(Equation):
@@ -536,7 +552,7 @@ class EDACEquationFSI(Equation):
 
 class RigidFluidCouplingScheme(Scheme):
     def __init__(self, fluids, boundaries, rigid_bodies, dim, rho0, p0, c0, h,
-                 nu,
+                 nu, kn=1e7, en=0.5,
                  gamma=7.0, integrator="rk2", gx=0.0, gy=0.0, gz=0.0,
                  alpha=0.1, beta=0.0, kernel_choice="1", kernel_factor=3,
                  edac_alpha=0.5):
@@ -562,6 +578,10 @@ class RigidFluidCouplingScheme(Scheme):
         self.h = h
         self.art_nu = 0.
         self.nu = nu
+
+        # rigid body parameters
+        self.kn = kn
+        self.en = en
 
         self.dim = dim
 
@@ -629,14 +649,14 @@ class RigidFluidCouplingScheme(Scheme):
             eqs.append(EDACEquation(dest=fluid,
                                     sources=self.fluids+self.boundaries, nu=nu_edac), )
 
-        # if len(self.rigid_bodies) > 0:
-        #     for fluid in self.fluids:
-        #         eqs.append(
-        #             ContinuityEquationFSI(dest=fluid,
-        #                                   sources=self.rigid_bodies), )
-        #         eqs.append(
-        #             EDACEquationFSI(dest=fluid,
-        #                             sources=self.rigid_bodies, nu=nu_edac), )
+        if len(self.rigid_bodies) > 0:
+            for fluid in self.fluids:
+                eqs.append(
+                    ContinuityEquationFSI(dest=fluid,
+                                          sources=self.rigid_bodies), )
+                eqs.append(
+                    EDACEquationFSI(dest=fluid,
+                                    sources=self.rigid_bodies, nu=nu_edac), )
 
         stage1.append(Group(equations=eqs, real=False))
 
@@ -644,7 +664,6 @@ class RigidFluidCouplingScheme(Scheme):
         # Stage 2 equations
         # ==============================
         stage2 = []
-        g1 = []
         g2 = []
 
         if len(self.fluids) > 0:
@@ -659,17 +678,21 @@ class RigidFluidCouplingScheme(Scheme):
                                         gx=self.gx,
                                         gy=self.gy,
                                         gz=self.gz))
+                tmp.append(
+                    ClampWallPressure(dest=solid, sources=None))
 
-            # for solid in self.rigid_bodies:
-            #     tmp.append(
-            #         SetWallVelocity(dest=solid,
-            #                         sources=self.fluids))
-            #     tmp.append(
-            #         SolidWallPressureBCFSI(dest=solid,
-            #                                sources=self.fluids,
-            #                                gx=self.gx,
-            #                                gy=self.gy,
-            #                                gz=self.gz))
+            for solid in self.rigid_bodies:
+                tmp.append(
+                    SetWallVelocity(dest=solid,
+                                    sources=self.fluids))
+                tmp.append(
+                    SolidWallPressureBCFSI(dest=solid,
+                                           sources=self.fluids,
+                                           gx=self.gx,
+                                           gy=self.gy,
+                                           gz=self.gz))
+                tmp.append(
+                    ClampWallPressureFSI(dest=solid, sources=None))
 
             if len(tmp) > 0:
                 stage2.append(Group(equations=tmp, real=False))
@@ -700,41 +723,43 @@ class RigidFluidCouplingScheme(Scheme):
         #######################
         # Handle rigid bodies #
         #######################
-        # if len(self.rigid_bodies) > 0:
-        #     tmp = []
-        #     # update the contacts first
-        #     for name in self.rigid_bodies:
-        #         tmp.append(
-        #             # see the previous examples and write down the sources
-        #             UpdateTangentialContactsLVCDisplacement(dest=name, sources=boundaries))
-        #     stage2.append(Group(equations=tmp, real=False))
+        if len(self.rigid_bodies) > 0:
+            tmp = []
+            # update the contacts first
+            for name in self.rigid_bodies:
+                tmp.append(
+                    # see the previous examples and write down the sources
+                    UpdateTangentialContactsLVCForce(dest=name, sources=self.rigid_bodies+self.boundaries))
+            stage2.append(Group(equations=tmp, real=False))
 
-        #     g5 = []
-        #     for name in self.rigid_bodies:
-        #         g5.append(
-        #             BodyForce(dest=name,
-        #                       sources=None,
-        #                       gx=self.gx,
-        #                       gy=self.gy,
-        #                       gz=self.gz))
+            g5 = []
+            for name in self.rigid_bodies:
+                g5.append(
+                    BodyForce(dest=name,
+                              sources=None,
+                              gx=self.gx,
+                              gy=self.gy,
+                              gz=self.gz))
 
-        #     for name in self.rigid_bodies:
-        #         g5.append(RigidBodyLVC(dest=name, sources=boundaries))
+            for name in self.rigid_bodies:
+                g5.append(RigidBodyLVC(dest=name, sources=self.rigid_bodies+self.boundaries,
+                                       kn=self.kn,
+                                       en=self.en))
 
-        #     # add the force due to fluid
-        #     if len(self.fluids) > 0:
-        #         for name in self.rigid_bodies:
-        #             g5.append(ForceOnRigidBodyDuetoFluid(dest=name,
-        #                                                  sources=self.fluids))
+            # add the force due to fluid
+            if len(self.fluids) > 0:
+                for name in self.rigid_bodies:
+                    g5.append(ForceOnRigidBodyDuetoFluid(dest=name,
+                                                         sources=self.fluids))
 
-        #     stage2.append(Group(equations=g5, real=False))
+            stage2.append(Group(equations=g5, real=False))
 
-        #     # computation of total force and torque at center of mass
-        #     g6 = []
-        #     for name in self.rigid_bodies:
-        #         g6.append(SumUpExternalForces(dest=name, sources=None))
+            # computation of total force and torque at center of mass
+            g6 = []
+            for name in self.rigid_bodies:
+                g6.append(SumUpExternalForces(dest=name, sources=None))
 
-        #     stage2.append(Group(equations=g6, real=False))
+            stage2.append(Group(equations=g6, real=False))
 
         return MultiStageEquations([stage1, stage2])
 
