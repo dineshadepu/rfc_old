@@ -1,7 +1,10 @@
-"""
-Simulation of solid-fluid mixture flow using moving particle methods
+"""Simulation of solid-fluid mixture flow using moving particle methods
 Shuai Zhang
+
+TODO: 1. Fix the dam such that the bottom layer is y - spacing/2.
+TODO: 2. Implement a simple 2d variant of rigid body collision.
 """
+
 from __future__ import print_function
 import numpy as np
 
@@ -12,8 +15,7 @@ from pysph.base.utils import (get_particle_array)
 
 from rigid_fluid_coupling import RigidFluidCouplingScheme
 
-from pysph.tools.geometry import get_2d_block
-from geometry import hydrostatic_tank_2d
+from pysph.tools.geometry import get_2d_block, get_2d_tank
 
 
 def create_circle_1(diameter=1, spacing=0.05, center=None):
@@ -29,8 +31,6 @@ def create_circle_1(diameter=1, spacing=0.05, center=None):
     while tmp_dist > spacing/2.:
         perimeter = 2. * np.pi * tmp_dist
         no_of_points = int(perimeter / spacing) + 1
-        print("no_of_points")
-        print(no_of_points)
         theta = np.linspace(0., 2. * np.pi, no_of_points)
         for t in theta[:-1]:
             x.append(tmp_dist * np.cos(t))
@@ -67,6 +67,27 @@ def create_circle(diameter=1, spacing=0.05, center=None):
         return x + center[0], y + center[1]
 
 
+def hydrostatic_tank_2d(fluid_length, fluid_height, tank_height, tank_layers,
+                        fluid_spacing, tank_spacing):
+    xt, yt = get_2d_tank(dx=tank_spacing,
+                         length=fluid_length + 2. * tank_spacing,
+                         height=tank_height,
+                         num_layers=tank_layers)
+    xf, yf = get_2d_block(dx=fluid_spacing,
+                          length=fluid_length,
+                          height=fluid_height,
+                          center=[-1.5, 1])
+
+    xf += (np.min(xt) - np.min(xf))
+    yf -= (np.min(yf) - np.min(yt))
+
+    # now adjust inside the tank
+    xf += tank_spacing * (tank_layers)
+    yf += tank_spacing * (tank_layers)
+
+    return xf, yf, xt, yt
+
+
 class ZhangStackOfCylinders(Application):
     def initialize(self):
         self.dim = 2
@@ -81,23 +102,23 @@ class ZhangStackOfCylinders(Application):
         self.cylinder_radius = 1. / 2. * 1e-2
         self.cylinder_diameter = 1. * 1e-2
         self.cylinder_spacing = spacing * 1e-3
-        self.cylinder_rho = 2000.
+        self.cylinder_rho = 2700
 
         self.wall_height = 20 * 1e-2
         self.wall_spacing = spacing * 1e-3
         self.wall_layers = 2
-        self.wall_time = 0.1
-        self.wall_rho = 2000.
+        self.wall_time = 0.2
+        self.wall_rho = 2700
 
         # simulation properties
-        self.hdx = 1.0
+        self.hdx = 0.5
         self.alpha = 0.1
         self.gy = -9.81
         self.h = self.hdx * self.cylinder_spacing
 
         # solver data
-        self.tf = 0.6 + self.wall_time
-        self.dt = 5e-5
+        self.tf = 0.5 + self.wall_time
+        self.dt = 1e-4
 
         # Rigid body collision related data
         self.limit = 6
@@ -147,6 +168,10 @@ class ZhangStackOfCylinders(Application):
         wall.add_property('dem_id', type='int', data=max(body_id) + 2)
 
         self.scheme.setup_properties([cylinders, dam, wall])
+
+        print(cylinders.inertia_tensor_body_frame[0:9])
+        print(cylinders.total_mass)
+        print(cylinders.xcm[0:2])
 
         # please run this function to know how
         # geometry looks like
@@ -249,7 +274,6 @@ class ZhangStackOfCylinders(Application):
 
         return x, y, body_id
 
-
     def create_cylinders_stack(self):
         # create a row of six cylinders
         x_six_1 = np.array([])
@@ -340,7 +364,6 @@ class ZhangStackOfCylinders(Application):
 
         from pysph.solver.utils import iter_output
         files = self.output_files
-        print(len(files))
         t = []
         system_x = []
         system_y = []
@@ -361,14 +384,14 @@ class ZhangStackOfCylinders(Application):
 
         import matplotlib.pyplot as plt
         t = np.asarray(t)
-        t = t - 0.1
+        t = t - self.wall_time
         print(t)
 
         data = np.loadtxt('x_com_zhang.csv', delimiter=',')
         tx, xcom_zhang = data[:, 0], data[:, 1]
 
-        plt.plot(tx, xcom_zhang, "s--", label='Simulated PySPH')
-        plt.plot(t, system_x, "s-", label='Experimental')
+        plt.plot(tx, xcom_zhang, "s--", label='Experimental')
+        plt.plot(t, system_x, "s-", label='Simulated PySPH')
         plt.xlabel("time")
         plt.ylabel("x/L")
         plt.legend()

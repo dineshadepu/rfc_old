@@ -743,8 +743,7 @@ class RigidFluidCouplingScheme(Scheme):
 
             for name in self.rigid_bodies:
                 g5.append(RigidBodyLVC(dest=name, sources=self.rigid_bodies+self.boundaries,
-                                       kn=self.kn,
-                                       en=self.en))
+                                       kn=self.kn))
 
             # add the force due to fluid
             if len(self.fluids) > 0:
