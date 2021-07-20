@@ -36,7 +36,8 @@ from rigid_body_common import (set_total_mass, set_center_of_mass,
                                set_body_frame_normal_vectors,
                                set_moment_of_inertia_and_its_inverse,
                                BodyForce, SumUpExternalForces,
-                               normalize_R_orientation, RigidBodyLVC)
+                               normalize_R_orientation, RigidBodyLVC,
+                               RigidBodyCanelas)
 
 from dem import UpdateTangentialContactsLVCDisplacement, UpdateTangentialContactsLVCForce
 
@@ -742,8 +743,7 @@ class RigidFluidCouplingScheme(Scheme):
                               gz=self.gz))
 
             for name in self.rigid_bodies:
-                g5.append(RigidBodyLVC(dest=name, sources=self.rigid_bodies+self.boundaries,
-                                       kn=self.kn))
+                g5.append(RigidBodyCanelas(dest=name, sources=self.rigid_bodies+self.boundaries))
 
             # add the force due to fluid
             if len(self.fluids) > 0:

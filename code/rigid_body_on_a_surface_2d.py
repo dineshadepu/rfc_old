@@ -1,6 +1,10 @@
 """
 
-My own idea
+A novel computational approach for large deformation and
+post-failure analyses of segmental retaining wall systems
+
+
+This is basically bouncing cube example.
 """
 import numpy as np
 
@@ -22,7 +26,7 @@ from pysph.tools.geometry import get_2d_block
 
 class RigidFluidCoupling(Application):
     def initialize(self):
-        spacing = 0.008 * 2.
+        spacing = 0.125 * 1e-2
         self.hdx = 1.0
 
         # the fluid dimensions are
@@ -47,8 +51,8 @@ class RigidFluidCoupling(Application):
         self.obstacle_height = 0.75
         self.obstacle_spacing = spacing
 
-        self.body_height = 0.5
-        self.body_length = 0.5
+        self.body_height = 2.5 * 1e-2
+        self.body_length = 3.2 * 1e-2
         self.body_depth = 0.054
         self.body_density = 2000.
         self.body_spacing = spacing
@@ -67,9 +71,10 @@ class RigidFluidCoupling(Application):
 
     def create_particles(self):
         # create the wall which should be lifted for the water to flow
-        xw, yw = get_2d_block(self.fluid_spacing, 1., self.tank_layers*self.tank_spacing)
+        xw, yw = get_2d_block(self.fluid_spacing, 3. * self.body_length, 0*self.tank_spacing)
+        yw -= self.body_spacing / 2.
         m = self.body_density * self.body_spacing**self.dim
-        rad_s = self.fluid_spacing
+        rad_s = self.fluid_spacing / 2.
         wall = get_particle_array(x=xw,
                                   y=yw,
                                   m=m,
@@ -77,13 +82,19 @@ class RigidFluidCoupling(Application):
                                   h=self.h,
                                   rho=self.fluid_density,
                                   rad_s=rad_s,
-                                  name="wall")
+                                  name="wall",
+                                  constants={
+                                      'E': 69 * 1e9,
+                                      'poisson_ratio': 0.3,
+                                  })
         wall.add_property('dem_id', type='int', data=1)
 
         # Create the rigid body
         xb, yb = get_2d_block(dx=self.body_spacing,
                               length=self.body_length,
                               height=self.body_height)
+        yb += np.max(yw) - np.min(yb) + self.body_spacing
+        yb += 0.1 - self.body_height / 2.
 
         m = self.body_density * self.body_spacing**self.dim
         body = get_particle_array(name='body',
@@ -93,15 +104,20 @@ class RigidFluidCoupling(Application):
                                   m=m,
                                   rho=self.body_density,
                                   m_fluid=1.,
-                                  rad_s=rad_s)
-        body.y[:] += np.max(wall.y) - np.min(body.y) + self.body_spacing
-        body.y[:] += self.body_height / 3.
+                                  rad_s=rad_s,
+                                  constants={
+                                      'E': 69 * 1e9,
+                                      'poisson_ratio': 0.3,
+                                  })
+        # body.y[:] += np.max(wall.y) - np.min(body.y) + self.body_spacing
+        # body.y[:] += self.body_height / 3.
         body_id = np.zeros(len(xb), dtype=int)
         body.add_property('body_id', type='int', data=body_id)
         body.add_constant('max_tng_contacts_limit', 30)
         body.add_property('dem_id', type='int', data=0)
 
         self.scheme.setup_properties([body, wall])
+        print(body.xcm)
 
         # body.y[:] += 0.5
         body.m_fsi[:] += self.fluid_density * self.body_spacing**self.dim
@@ -127,14 +143,51 @@ class RigidFluidCoupling(Application):
         scheme = self.scheme
         scheme.configure(h=self.h)
 
-        dt = 5e-4
+        dt = 1e-5
         print("DT: %s" % dt)
         tf = 1.
 
         self.scheme.configure_solver(dt=dt, tf=tf, pfreq=100)
 
+    def post_process(self, fname):
+        if len(self.output_files) == 0:
+            return
+
+        from pysph.solver.utils import iter_output
+
+        files = self.output_files
+        files = files[::1]
+        t = []
+        x, y = [], []
+        for sd, body in iter_output(files, 'body'):
+            _t = sd['t']
+            t.append(_t)
+            x.append(body.xcm[0])
+            y.append(body.xcm[1])
+
+        import os
+        from matplotlib import pyplot as plt
+
+        # res = os.path.join(self.output_dir, "results.npz")
+        # np.savez(res, t=t, amplitude=amplitude)
+
+        # gtvf data
+        # data = np.loadtxt('./oscillating_plate.csv', delimiter=',')
+        # t_gtvf, amplitude_gtvf = data[:, 0], data[:, 1]
+
+        plt.clf()
+
+        # plt.plot(t_gtvf, amplitude_gtvf, "s-", label='GTVF Paper')
+        plt.plot(t, y, "-", label='y-center of mass')
+
+        plt.xlabel('t')
+        plt.ylabel('total energy')
+        plt.legend()
+        fig = os.path.join(os.path.dirname(fname), "y_center_of_mass.png")
+        plt.savefig(fig, dpi=300)
+
 
 if __name__ == '__main__':
     app = RigidFluidCoupling()
     app.run()
-    # app.post_process(app.info_filename)
+    app.post_process(app.info_filename)

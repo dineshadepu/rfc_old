@@ -55,7 +55,14 @@ class Case0(Application):
         h = np.ones_like(x) * self.hdx * dx
         # radius of each sphere constituting in cube
         rad_s = np.ones_like(x) * dx
-        body = get_particle_array(name='body', x=x, y=y, h=h, m=m, rad_s=rad_s)
+        body = get_particle_array(name='body', x=x, y=y, h=h, m=m, rad_s=rad_s,
+                                  constants={
+                                      'E': 69 * 1e9,
+                                      'n': 4,
+                                      'poisson_ratio': 0.3,
+                                      'spacing0': self.dx_plate,
+                                      'rho_ref': self.plate_rho0
+                                  })
         body_id = np.zeros(len(x), dtype=int)
         body.add_property('body_id', type='int', data=body_id)
         body.add_constant('max_tng_contacts_limit', 30)
