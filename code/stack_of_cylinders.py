@@ -107,7 +107,7 @@ class ZhangStackOfCylinders(Application):
         self.wall_height = 20 * 1e-2
         self.wall_spacing = spacing * 1e-3
         self.wall_layers = 2
-        self.wall_time = 0.2
+        self.wall_time = 0.1
         self.wall_rho = 2700
 
         # simulation properties
@@ -118,7 +118,7 @@ class ZhangStackOfCylinders(Application):
 
         # solver data
         self.tf = 0.5 + self.wall_time
-        self.dt = 1e-4
+        self.dt = 5e-5
 
         # Rigid body collision related data
         self.limit = 6
@@ -136,7 +136,11 @@ class ZhangStackOfCylinders(Application):
                                        y=yc,
                                        h=h,
                                        m=m,
-                                       rad_s=rad_s)
+                                       rad_s=rad_s,
+                                       constants={
+                                           'E': 69 * 1e9,
+                                           'poisson_ratio': 0.3,
+                                       })
         cylinders.add_property('dem_id', type='int', data=dem_id)
         cylinders.add_property('body_id', type='int', data=body_id)
         cylinders.add_constant('max_tng_contacts_limit', 10)
@@ -150,7 +154,11 @@ class ZhangStackOfCylinders(Application):
         dam = get_particle_array(x=xd,
                                  y=yd,
                                  rad_s=self.dam_spacing / 2.,
-                                 name="dam")
+                                 name="dam",
+                                 constants={
+                                     'E': 30 * 1e9,
+                                     'poisson_ratio': 0.3,
+                                 })
         dam.add_property('dem_id', type='int', data=max(body_id) + 1)
 
         # create wall with normals
@@ -164,7 +172,11 @@ class ZhangStackOfCylinders(Application):
         wall = get_particle_array(x=xw,
                                   y=yw,
                                   rad_s=self.wall_spacing / 2.,
-                                  name="wall")
+                                  name="wall",
+                                  constants={
+                                      'E': 30 * 1e9,
+                                      'poisson_ratio': 0.3,
+                                  })
         wall.add_property('dem_id', type='int', data=max(body_id) + 2)
 
         self.scheme.setup_properties([cylinders, dam, wall])
@@ -352,7 +364,7 @@ class ZhangStackOfCylinders(Application):
                 if pa.name == 'wall':
                     pa.x += 0.25
 
-    def post_process(self):
+    def post_process(self, fname):
         """This function will run once per time step after the time step is
         executed. For some time (self.wall_time), we will keep the wall near
         the cylinders such that they settle down to equilibrium and replicate
@@ -363,6 +375,7 @@ class ZhangStackOfCylinders(Application):
             return
 
         from pysph.solver.utils import iter_output
+        import os
         files = self.output_files
         t = []
         system_x = []
@@ -395,7 +408,8 @@ class ZhangStackOfCylinders(Application):
         plt.xlabel("time")
         plt.ylabel("x/L")
         plt.legend()
-        plt.savefig("xcom", dpi=300)
+        fig = os.path.join(os.path.dirname(fname), "xcom.png")
+        plt.savefig(fig, dpi=300)
         plt.clf()
 
         data = np.loadtxt('y_com_zhang.csv', delimiter=',')
@@ -406,7 +420,8 @@ class ZhangStackOfCylinders(Application):
         plt.xlabel("time")
         plt.ylabel("y/L")
         plt.legend()
-        plt.savefig("ycom", dpi=300)
+        fig = os.path.join(os.path.dirname(fname), "ycom.png")
+        plt.savefig(fig, dpi=300)
 
     def customize_output(self):
         self._mayavi_config('''
@@ -420,4 +435,4 @@ if __name__ == '__main__':
     # app.create_particles()
     # app.geometry()
     app.run()
-    app.post_process()
+    app.post_process(app.info_filename)

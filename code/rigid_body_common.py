@@ -1,7 +1,11 @@
 import numpy as np
 from pysph.sph.equation import Equation
 
-from numpy import sqrt, log
+from numpy import sqrt
+from math import sin, pi, log
+
+# constants
+M_PI = pi
 
 
 def set_total_mass(pa):
@@ -567,28 +571,230 @@ class RigidBodyLVC2D(Equation):
                 #                   ny * d_tng_fx[found_at]) * a_i
 
 
-class RigidBodyBui(Equation):
-    """
-    Hertz coulomn
-    linearViscoelasticContactModelWithCoulombFriction
+class RigidBodyBuiRigidRigid(Equation):
+    """Bui2014Novel
 
-    1. Simulation of solid-fluid mixture flow using moving particle methods
+    1. A novel computational approach for large deformation and post-failure
+    analyses of segmental retaining wall systems
+
     """
-    def __init__(self, dest, sources, kn=1e5, nu=0.3, alpha=0.3, mu=0.001):
-        self.kn = kn
-        self.kt = self.kn / (2. * (1. + nu))
-        self.nu = nu
-        self.kt_1 = 1. / self.kt
-        self.mu = mu
-        self.alpha = alpha
-        super(RigidBodyBui, self).__init__(dest, sources)
+    def __init__(self, dest, sources, en=1.):
+        self.en = en
+        super(RigidBodyBuiRigidRigid, self).__init__(dest, sources)
+
+    def initialize(self, d_idx, d_bui_total_contacts):
+        d_bui_total_contacts[d_idx] = 0
+
+    def loop(self, d_idx, d_total_mass, d_u, d_v, d_w, d_fx, d_fy, d_fz,
+             d_tng_idx, d_tng_idx_dem_id, d_tng_fx, d_tng_fy, d_tng_fz,
+             d_total_tng_contacts, d_dem_id, d_body_id, d_bui_total_contacts,
+             d_max_tng_contacts_limit, XIJ, d_poisson_ratio, s_poisson_ratio,
+             d_E, s_E, d_m, RIJ, d_rad_s, s_idx, s_m, s_u, s_v, s_w, s_rad_s,
+             s_dem_id, dt, t):
+        p, q1, tot_ctcs, j, found_at, found = declare('int', 6)
+        overlap = -1.
+
+        if d_dem_id[d_idx] != s_dem_id[s_idx]:
+            # check the particles are not on top of each other.
+            if RIJ > 0:
+                overlap = d_rad_s[d_idx] + s_rad_s[s_idx] - RIJ
+
+            # ---------- force computation starts ------------
+            # if particles are overlapping
+            if overlap > 0:
+                d_bui_total_contacts[d_idx] += 1
+                # normal vector (nij) passing from d_idx to s_idx, i.e., i to j
+                rinv = 1.0 / RIJ
+                # in PySPH: XIJ[0] = d_x[d_idx] - s_x[s_idx]
+                nx = XIJ[0] * rinv
+                ny = XIJ[1] * rinv
+                nz = XIJ[2] * rinv
+
+                # Now the relative velocity of particle j w.r.t i at the contact
+                # point is
+                vr_x = d_u[d_idx] - s_u[s_idx]
+                vr_y = d_v[d_idx] - s_v[s_idx]
+                vr_z = d_w[d_idx] - s_w[s_idx]
+
+                # normal velocity magnitude
+                vr_dot_nij = vr_x * nx + vr_y * ny + vr_z * nz
+                vn_x = vr_dot_nij
+                vn_y = vr_dot_nij
+                vn_z = vr_dot_nij
+
+                # tangential velocity
+                vt_x = vr_x - vn_x
+                vt_y = vr_y - vn_y
+                vt_z = vr_z - vn_z
+                # magnitude of the tangential velocity
+                vt_magn = (vt_x * vt_x + vt_y * vt_y + vt_z * vt_z)**0.5
+
+                tmp1 = (1 - d_poisson_ratio[0]**2.) / d_E[0]
+                tmp2 = (1 - s_poisson_ratio[0]**2.) / s_E[0]
+                # m_eff = d_m[d_idx] * s_m[s_idx] / (d_m[d_idx] + s_m[s_idx])
+                m_eff = d_total_mass[d_body_id[d_idx]] * s_m[s_idx] / (d_total_mass[d_body_id[d_idx]] + s_m[s_idx])
+                r_eff = d_rad_s[d_idx] * s_rad_s[s_idx] / (d_rad_s[d_idx] + s_rad_s[s_idx])
+
+                E_eff = 1. / (tmp1 + tmp2)
+
+                ############################
+                # normal force computation #
+                ############################
+                kn = 4. / 3. * E_eff * r_eff**0.5
+
+                # This is taken from Bui2014novel
+                log_en = log(self.en)
+                zeta = - 5**0.5 * log_en / (log_en**2. + M_PI**2.)**0.5
+                c_n = zeta * (m_eff * kn)**0.5
+
+                fn_x = kn * overlap**1.5 * nx - c_n * vr_dot_nij * nx
+                fn_y = kn * overlap**1.5 * ny - c_n * vr_dot_nij * ny
+                fn_z = kn * overlap**1.5 * nz - c_n * vr_dot_nij * nz
+
+                # #################################
+                # # tangential force computation  #
+                # #################################
+                # # total number of contacts of particle i in destination
+                # tot_ctcs = d_total_tng_contacts[d_idx]
+
+                # # d_idx has a range of tracking indices with sources
+                # # starting index is p
+                # p = d_idx * d_max_tng_contacts_limit[0]
+                # # ending index is q -1
+                # q1 = p + tot_ctcs
+
+                # # check if the particle is in the tracking list
+                # # if so, then save the location at found_at
+                # found = 0
+                # for j in range(p, q1):
+                #     if s_idx == d_tng_idx[j]:
+                #         if s_dem_id[s_idx] == d_tng_idx_dem_id[j]:
+                #             found_at = j
+                #             found = 1
+                #             break
+                # # if the particle is not been tracked then assign an index in
+                # # tracking history.
+                # ft_x = 0.
+                # ft_y = 0.
+                # ft_z = 0.
+
+                # if found == 0:
+                #     found_at = q1
+                #     d_tng_idx[found_at] = s_idx
+                #     d_total_tng_contacts[d_idx] += 1
+                #     d_tng_idx_dem_id[found_at] = s_dem_id[s_idx]
+
+                # # implies we are tracking the particle
+                # else:
+                #     ####################################################
+                #     # rotate the tangential force to the current plane #
+                #     ####################################################
+                #     ft_magn = (d_tng_fx[found_at]**2. + d_tng_fy[found_at]**2. +
+                #                d_tng_fz[found_at]**2.)**0.5
+                #     ft_dot_nij = (d_tng_fx[found_at] * nx +
+                #                   d_tng_fy[found_at] * ny +
+                #                   d_tng_fz[found_at] * nz)
+                #     # tangential force projected onto the current normal of the
+                #     # contact place
+                #     ft_px = d_tng_fx[found_at] - ft_dot_nij * nx
+                #     ft_py = d_tng_fy[found_at] - ft_dot_nij * ny
+                #     ft_pz = d_tng_fz[found_at] - ft_dot_nij * nz
+
+                #     ftp_magn = (ft_px**2. + ft_py**2. + ft_pz**2.)**0.5
+                #     if ftp_magn > 0:
+                #         one_by_ftp_magn = 1. / ftp_magn
+
+                #         tx = ft_px * one_by_ftp_magn
+                #         ty = ft_py * one_by_ftp_magn
+                #         tz = ft_pz * one_by_ftp_magn
+                #     else:
+                #         # if vt_magn > 0.:
+                #         #     tx = -vt_x / vt_magn
+                #         #     ty = -vt_y / vt_magn
+                #         #     tz = -vt_z / vt_magn
+                #         # else:
+                #         #     tx = 0.
+                #         #     ty = 0.
+                #         #     tz = 0.
+                #         tx = 0.
+                #         ty = 0.
+                #         tz = 0.
+
+                #     # rescale the projection by the magnitude of the
+                #     # previous tangential force, which gives the tangential
+                #     # force on the current plane
+                #     ft_x = ft_magn * tx
+                #     ft_y = ft_magn * ty
+                #     ft_z = ft_magn * tz
+
+                #     # (*) check against Coulomb criterion
+                #     # Tangential force magnitude due to displacement
+                #     ftr_magn = (ft_x * ft_x + ft_y * ft_y + ft_z * ft_z)**(0.5)
+                #     fn_magn = (fn_x * fn_x + fn_y * fn_y + fn_z * fn_z)**(0.5)
+
+                #     # we have to compare with static friction, so
+                #     # this mu has to be static friction coefficient
+                #     fn_mu = self.mu * fn_magn
+
+                #     if ftr_magn >= fn_mu:
+                #         # rescale the tangential displacement
+                #         d_tng_fx[found_at] = fn_mu * tx
+                #         d_tng_fy[found_at] = fn_mu * ty
+                #         d_tng_fz[found_at] = fn_mu * tz
+
+                #         # set the tangential force to static friction
+                #         # from Coulomb criterion
+                #         ft_x = fn_mu * tx
+                #         ft_y = fn_mu * ty
+                #         ft_z = fn_mu * tz
+                #     else:
+                #         d_tng_fx[found_at] = ft_x
+                #         d_tng_fy[found_at] = ft_y
+                #         d_tng_fz[found_at] = ft_z
+                ft_x = 0.
+                ft_y = 0.
+                ft_z = 0.
+
+                d_fx[d_idx] += fn_x + ft_x
+                d_fy[d_idx] += fn_y + ft_y
+                d_fz[d_idx] += fn_z + ft_z
+
+                # eta_t = eta_n / (2. * (1. + self.nu))**0.5
+                # d_tng_fx[found_at] -= self.kt * vt_x * dt - vt_x * eta_t
+                # d_tng_fy[found_at] -= self.kt * vt_y * dt - vt_y * eta_t
+                # d_tng_fz[found_at] -= self.kt * vt_z * dt - vt_z * eta_t
+
+                # torque = n cross F
+                # d_torx[d_idx] += (ny * d_tng_fz[found_at] -
+                #                   nz * d_tng_fy[found_at]) * a_i
+                # d_tory[d_idx] += (nz * d_tng_fx[found_at] -
+                #                   nx * d_tng_fz[found_at]) * a_i
+                # d_torz[d_idx] += (nx * d_tng_fy[found_at] -
+                #                   ny * d_tng_fx[found_at]) * a_i
+
+    def post_loop(self, d_idx, d_bui_total_contacts, d_fx, d_fy, d_fz):
+        if d_bui_total_contacts[d_idx] > 0.:
+            d_fx[d_idx] = d_fx[d_idx] / d_bui_total_contacts[d_idx]
+            d_fy[d_idx] = d_fy[d_idx] / d_bui_total_contacts[d_idx]
+            d_fz[d_idx] = d_fz[d_idx] / d_bui_total_contacts[d_idx]
+
+
+class RigidBodyCanelasRigidRigid(Equation):
+    """
+    canelas2016sph
+
+    1. SPH--DCDEM model for arbitrary geometries in free surface solid--fluid flows
+    """
+    def __init__(self, dest, sources, Cn=1.4 * 1e-5):
+        self.Cn = Cn
+        super(RigidBodyCanelasRigidRigid, self).__init__(dest, sources)
 
     def loop(self, d_idx, d_total_mass, d_u, d_v, d_w, d_fx, d_fy, d_fz,
              d_tng_idx, d_tng_idx_dem_id, d_tng_fx, d_tng_fy, d_tng_fz,
              d_total_tng_contacts, d_dem_id, d_body_id,
-             d_max_tng_contacts_limit, XIJ,
-             RIJ, d_rad_s, s_idx, s_m, s_u, s_v, s_w, s_rad_s, s_dem_id, dt,
-             t):
+             d_max_tng_contacts_limit, XIJ, d_poisson_ratio, s_poisson_ratio,
+             d_E, s_E, d_m, RIJ, d_rad_s, s_idx, s_m, s_u, s_v, s_w, s_rad_s,
+             s_total_mass, s_body_id, s_dem_id, dt, t):
         p, q1, tot_ctcs, j, found_at, found = declare('int', 6)
         overlap = -1.
 
@@ -603,21 +809,21 @@ class RigidBodyBui(Equation):
                 # normal vector (nij) passing from d_idx to s_idx, i.e., i to j
                 rinv = 1.0 / RIJ
                 # in PySPH: XIJ[0] = d_x[d_idx] - s_x[s_idx]
-                nx = -XIJ[0] * rinv
-                ny = -XIJ[1] * rinv
-                nz = -XIJ[2] * rinv
+                nx = XIJ[0] * rinv
+                ny = XIJ[1] * rinv
+                nz = XIJ[2] * rinv
 
                 # Now the relative velocity of particle j w.r.t i at the contact
                 # point is
-                vr_x = s_u[s_idx] - d_u[d_idx]
-                vr_y = s_v[s_idx] - d_v[d_idx]
-                vr_z = s_w[s_idx] - d_w[d_idx]
+                vr_x = d_u[d_idx] - s_u[s_idx]
+                vr_y = d_v[d_idx] - s_v[s_idx]
+                vr_z = d_w[d_idx] - s_w[s_idx]
 
                 # normal velocity magnitude
                 vr_dot_nij = vr_x * nx + vr_y * ny + vr_z * nz
-                vn_x = vr_dot_nij * nx
-                vn_y = vr_dot_nij * ny
-                vn_z = vr_dot_nij * nz
+                vn_x = vr_dot_nij
+                vn_y = vr_dot_nij
+                vn_z = vr_dot_nij
 
                 # tangential velocity
                 vt_x = vr_x - vn_x
@@ -626,17 +832,25 @@ class RigidBodyBui(Equation):
                 # magnitude of the tangential velocity
                 vt_magn = (vt_x * vt_x + vt_y * vt_y + vt_z * vt_z)**0.5
 
-                # m_eff = d_total_mass[d_body_id[d_idx]] * s_m[s_idx] / (d_m[d_idx] + s_m[s_idx])
-                m_eff = d_total_mass[d_body_id[d_idx]]
-                eta_n = self.alpha * 2. * (m_eff * self.kn)**0.5
+                tmp1 = (1 - d_poisson_ratio[0]**2.) / d_E[0]
+                tmp2 = (1 - s_poisson_ratio[0]**2.) / s_E[0]
+                # m_eff = d_m[d_idx] * s_m[s_idx] / (d_m[d_idx] + s_m[s_idx])
+                m_eff = d_total_mass[d_body_id[d_idx]] * s_total_mass[s_body_id[s_idx]] / (d_total_mass[d_body_id[d_idx]] + s_total_mass[s_body_id[s_idx]])
+                r_eff = d_rad_s[d_idx] * s_rad_s[s_idx] / (d_rad_s[d_idx] + s_rad_s[s_idx])
+
+                E_eff = 1. / (tmp1 + tmp2)
 
                 ############################
                 # normal force computation #
                 ############################
-                kn_overlap = self.kn * overlap
-                fn_x = -kn_overlap * nx + eta_n * vn_x
-                fn_y = -kn_overlap * ny + eta_n * vn_y
-                fn_z = -kn_overlap * nz + eta_n * vn_z
+                kn = 4. / 3. * E_eff * r_eff**0.5
+
+                # This is taken from Bui2014novel
+                gamma_n = self.Cn * (6. * m_eff * E_eff * r_eff**0.5)**0.5
+
+                fn_x = kn * overlap**1.5 * nx - gamma_n * vr_dot_nij * nx
+                fn_y = kn * overlap**1.5 * ny - gamma_n * vr_dot_nij * ny
+                fn_z = kn * overlap**1.5 * nz - gamma_n * vr_dot_nij * nz
 
                 #################################
                 # tangential force computation  #
@@ -743,10 +957,10 @@ class RigidBodyBui(Equation):
                 d_fy[d_idx] += fn_y + ft_y
                 d_fz[d_idx] += fn_z + ft_z
 
-                eta_t = eta_n / (2. * (1. + self.nu))**0.5
-                d_tng_fx[found_at] -= self.kt * vt_x * dt - vt_x * eta_t
-                d_tng_fy[found_at] -= self.kt * vt_y * dt - vt_y * eta_t
-                d_tng_fz[found_at] -= self.kt * vt_z * dt - vt_z * eta_t
+                # eta_t = eta_n / (2. * (1. + self.nu))**0.5
+                # d_tng_fx[found_at] -= self.kt * vt_x * dt - vt_x * eta_t
+                # d_tng_fy[found_at] -= self.kt * vt_y * dt - vt_y * eta_t
+                # d_tng_fz[found_at] -= self.kt * vt_z * dt - vt_z * eta_t
 
                 # torque = n cross F
                 # d_torx[d_idx] += (ny * d_tng_fz[found_at] -
@@ -757,14 +971,15 @@ class RigidBodyBui(Equation):
                 #                   ny * d_tng_fx[found_at]) * a_i
 
 
-class RigidBodyCanelas(Equation):
+class RigidBodyCanelasRigidWall(Equation):
     """
     canelas2016sph
 
     1. SPH--DCDEM model for arbitrary geometries in free surface solid--fluid flows
     """
-    def __init__(self, dest, sources):
-        super(RigidBodyCanelas, self).__init__(dest, sources)
+    def __init__(self, dest, sources, Cn=1.4 * 1e-5):
+        self.Cn = Cn
+        super(RigidBodyCanelasRigidWall, self).__init__(dest, sources)
 
     def loop(self, d_idx, d_total_mass, d_u, d_v, d_w, d_fx, d_fy, d_fz,
              d_tng_idx, d_tng_idx_dem_id, d_tng_fx, d_tng_fy, d_tng_fz,
@@ -798,9 +1013,9 @@ class RigidBodyCanelas(Equation):
 
                 # normal velocity magnitude
                 vr_dot_nij = vr_x * nx + vr_y * ny + vr_z * nz
-                vn_x = vr_dot_nij * nx
-                vn_y = vr_dot_nij * ny
-                vn_z = vr_dot_nij * nz
+                vn_x = vr_dot_nij
+                vn_y = vr_dot_nij
+                vn_z = vr_dot_nij
 
                 # tangential velocity
                 vt_x = vr_x - vn_x
@@ -811,19 +1026,23 @@ class RigidBodyCanelas(Equation):
 
                 tmp1 = (1 - d_poisson_ratio[0]**2.) / d_E[0]
                 tmp2 = (1 - s_poisson_ratio[0]**2.) / s_E[0]
-                m_eff = d_m[d_idx] * s_m[s_idx] / (d_m[d_idx] + s_m[s_idx])
-                r_eff = d_rad_s[d_idx] * s_rad_s[s_idx] / (d_rad_s[d_idx] + s_rad_s[s_idx])
+                # m_eff = d_m[d_idx] * s_m[s_idx] / (d_m[d_idx] + s_m[s_idx])
+                m_eff = d_total_mass[d_body_id[d_idx]]
+                r_eff = d_rad_s[d_idx]
 
                 E_eff = 1. / (tmp1 + tmp2)
-                # gamma_n = self.alpha * 2. * (m_eff * self.kn)**0.5
 
                 ############################
                 # normal force computation #
                 ############################
                 kn = 4. / 3. * E_eff * r_eff**0.5
-                fn_x = kn * overlap**1.5 * nx
-                fn_y = kn * overlap**1.5 * ny
-                fn_z = kn * overlap**1.5 * nz
+
+                # This is taken from Bui2014novel
+                gamma_n = self.Cn * (6. * m_eff * E_eff * r_eff**0.5)**0.5
+
+                fn_x = kn * overlap**1.5 * nx - gamma_n * vr_dot_nij * nx
+                fn_y = kn * overlap**1.5 * ny - gamma_n * vr_dot_nij * ny
+                fn_z = kn * overlap**1.5 * nz - gamma_n * vr_dot_nij * nz
 
                 # #################################
                 # # tangential force computation  #

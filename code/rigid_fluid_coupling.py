@@ -37,7 +37,9 @@ from rigid_body_common import (set_total_mass, set_center_of_mass,
                                set_moment_of_inertia_and_its_inverse,
                                BodyForce, SumUpExternalForces,
                                normalize_R_orientation, RigidBodyLVC,
-                               RigidBodyCanelas)
+                               RigidBodyCanelasRigidRigid,
+                               RigidBodyCanelasRigidWall,
+                               RigidBodyBuiRigidRigid)
 
 from dem import UpdateTangentialContactsLVCDisplacement, UpdateTangentialContactsLVCForce
 
@@ -553,10 +555,9 @@ class EDACEquationFSI(Equation):
 
 class RigidFluidCouplingScheme(Scheme):
     def __init__(self, fluids, boundaries, rigid_bodies, dim, rho0, p0, c0, h,
-                 nu, kn=1e7, en=0.5,
-                 gamma=7.0, integrator="rk2", gx=0.0, gy=0.0, gz=0.0,
-                 alpha=0.1, beta=0.0, kernel_choice="1", kernel_factor=3,
-                 edac_alpha=0.5):
+                 nu, kn=1e7, en=0.5, Cn=1.4*1e-5, gamma=7.0, integrator="rk2",
+                 dem="bui", gx=0.0, gy=0.0, gz=0.0, alpha=0.1, beta=0.0,
+                 kernel_choice="1", kernel_factor=3, edac_alpha=0.5):
         self.rigid_bodies = rigid_bodies
 
         if boundaries is None:
@@ -583,12 +584,14 @@ class RigidFluidCouplingScheme(Scheme):
         # rigid body parameters
         self.kn = kn
         self.en = en
+        self.Cn = Cn
 
         self.dim = dim
 
         self.kernel = CubicSpline
 
         self.integrator = integrator
+        self.dem = dem
 
         self.rho0 = rho0
         self.p0 = p0
@@ -613,8 +616,16 @@ class RigidFluidCouplingScheme(Scheme):
                            choices=choices,
                            help="Specify what integrator to use " % choices)
 
+        choices = ['bui', 'canelas']
+        group.add_argument("--dem",
+                           action="store",
+                           dest='dem',
+                           default="bui",
+                           choices=choices,
+                           help="DEM interaction " % choices)
+
     def consume_user_options(self, options):
-        _vars = ['integrator']
+        _vars = ['integrator', 'dem']
         data = dict((var, self._smart_getattr(options, var)) for var in _vars)
         self.configure(**data)
 
@@ -727,11 +738,11 @@ class RigidFluidCouplingScheme(Scheme):
         if len(self.rigid_bodies) > 0:
             tmp = []
             # update the contacts first
-            for name in self.rigid_bodies:
-                tmp.append(
-                    # see the previous examples and write down the sources
-                    UpdateTangentialContactsLVCForce(dest=name, sources=self.rigid_bodies+self.boundaries))
-            stage2.append(Group(equations=tmp, real=False))
+            # for name in self.rigid_bodies:
+            #     tmp.append(
+            #         # see the previous examples and write down the sources
+            #         UpdateTangentialContactsLVCForce(dest=name, sources=self.rigid_bodies+self.boundaries))
+            # stage2.append(Group(equations=tmp, real=False))
 
             g5 = []
             for name in self.rigid_bodies:
@@ -743,7 +754,22 @@ class RigidFluidCouplingScheme(Scheme):
                               gz=self.gz))
 
             for name in self.rigid_bodies:
-                g5.append(RigidBodyCanelas(dest=name, sources=self.rigid_bodies+self.boundaries))
+                if self.dem == "canelas":
+                    g5.append(RigidBodyCanelasRigidRigid(dest=name, sources=self.rigid_bodies,
+                                                         Cn=self.Cn))
+                elif self.dem == "bui":
+                    g5.append(RigidBodyBuiRigidRigid(dest=name, sources=self.rigid_bodies,
+                                                     en=self.en))
+
+                if len(self.boundaries) > 0:
+                    if self.dem == "canelas":
+                        g5.append(RigidBodyCanelasRigidWall(dest=name, sources=self.boundaries,
+                                                            Cn=self.Cn))
+                    elif self.dem == "bui":
+                        g5.append(RigidBodyBuiRigidRigid(dest=name, sources=self.boundaries,
+                                                         en=self.en))
+
+
 
             # add the force due to fluid
             if len(self.fluids) > 0:
@@ -941,9 +967,14 @@ class RigidFluidCouplingScheme(Scheme):
             pa.add_property('total_tng_contacts', type="int")
             pa.total_tng_contacts[:] = 0
 
+            if self.dem == "bui":
+                pa.add_property('bui_total_contacts', type="int")
+                pa.bui_total_contacts[:] = 0
+                pa.add_output_arrays(['bui_total_contacts'])
+
             pa.set_output_arrays([
                 'x', 'y', 'z', 'u', 'v', 'w', 'fx', 'fy', 'normal',
-                'is_boundary', 'fz', 'm', 'body_id'
+                'is_boundary', 'fz', 'm', 'body_id', 'p_fsi'
             ])
 
         for boundary in self.boundaries:
@@ -964,6 +995,7 @@ class RigidFluidCouplingScheme(Scheme):
             pa.vol[:] = pa.m[:] / pa.rho[:]
 
             pa.cs[:] = self.c0
+            pa.add_output_arrays(['p'])
 
     def _set_particle_velocities(self, pa):
         for i in range(max(pa.body_id) + 1):

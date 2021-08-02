@@ -93,6 +93,7 @@ class RigidFluidCoupling(Application):
         xb, yb = get_2d_block(dx=self.body_spacing,
                               length=self.body_length,
                               height=self.body_height)
+        xb += self.body_spacing / 2.
         yb += np.max(yw) - np.min(yb) + self.body_spacing
         yb += 0.1 - self.body_height / 2.
 
@@ -129,7 +130,8 @@ class RigidFluidCoupling(Application):
                                        fluids=None,
                                        boundaries=['wall'],
                                        dim=2,
-                                       en=0.1,
+                                       en=.5,
+                                       Cn=1e-3,
                                        rho0=self.fluid_density,
                                        p0=self.p0,
                                        c0=self.c0,
@@ -143,7 +145,7 @@ class RigidFluidCoupling(Application):
         scheme = self.scheme
         scheme.configure(h=self.h)
 
-        dt = 1e-5
+        dt = 5e-5
         print("DT: %s" % dt)
         tf = 1.
 
