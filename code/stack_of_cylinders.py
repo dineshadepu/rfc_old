@@ -13,7 +13,8 @@ from pysph.sph.scheme import SchemeChooser
 
 from pysph.base.utils import (get_particle_array)
 
-from rigid_fluid_coupling import RigidFluidCouplingScheme
+# from rigid_fluid_coupling import RigidFluidCouplingScheme
+from rigid_body_3d import RigidBody3DScheme
 
 from pysph.tools.geometry import get_2d_block, get_2d_tank
 
@@ -96,7 +97,7 @@ class ZhangStackOfCylinders(Application):
         self.dam_length = 26 * 1e-2
         self.dam_height = 26 * 1e-2
         self.dam_spacing = spacing * 1e-3
-        self.dam_layers = 2
+        self.dam_layers = 5
         self.dam_rho = 2000.
 
         self.cylinder_radius = 1. / 2. * 1e-2
@@ -111,7 +112,7 @@ class ZhangStackOfCylinders(Application):
         self.wall_rho = 2700
 
         # simulation properties
-        self.hdx = 0.5
+        self.hdx = 1.3
         self.alpha = 0.1
         self.gy = -9.81
         self.h = self.hdx * self.cylinder_spacing
@@ -129,34 +130,39 @@ class ZhangStackOfCylinders(Application):
         xc, yc, body_id = self.create_cylinders_stack_1()
         dem_id = body_id
         m = self.cylinder_rho * self.cylinder_spacing**2
-        h = self.hdx * self.cylinder_radius
+        h = self.hdx * self.cylinder_spacing
         rad_s = self.cylinder_spacing / 2.
         cylinders = get_particle_array(name='cylinders',
                                        x=xc,
                                        y=yc,
+                                       rho=self.cylinder_rho,
                                        h=h,
                                        m=m,
                                        rad_s=rad_s,
                                        constants={
                                            'E': 69 * 1e9,
                                            'poisson_ratio': 0.3,
+                                           'initial_spacing0': self.cylinder_spacing,
                                        })
         cylinders.add_property('dem_id', type='int', data=dem_id)
         cylinders.add_property('body_id', type='int', data=body_id)
-        cylinders.add_constant('max_tng_contacts_limit', 10)
+        cylinders.add_constant('total_no_bodies', 35)
 
         # create dam with normals
         _xf, _yf, xd, yd = hydrostatic_tank_2d(
             self.dam_length, self.dam_height, self.dam_height, self.dam_layers,
-            self.dam_spacing, self.dam_spacing)
+            self.cylinder_spacing, self.cylinder_spacing)
         xd += min(cylinders.x) - min(xd) - self.dam_spacing * self.dam_layers
 
         dam = get_particle_array(x=xd,
                                  y=yd,
+                                 rho=self.cylinder_rho,
+                                 h=h,
+                                 m=m,
                                  rad_s=self.dam_spacing / 2.,
                                  name="dam",
                                  constants={
-                                     'E': 30 * 1e9,
+                                     'E': 30 * 1e8,
                                      'poisson_ratio': 0.3,
                                  })
         dam.add_property('dem_id', type='int', data=max(body_id) + 1)
@@ -164,58 +170,125 @@ class ZhangStackOfCylinders(Application):
         # create wall with normals
         xw, yw = get_2d_block(
             self.wall_spacing,
-            self.wall_spacing,
+            self.cylinder_spacing/2.,
             self.wall_height / 4.
         )
-        xw += max(cylinders.x) - min(xw) + self.wall_spacing
+        xw += max(cylinders.x) - min(xw) + self.cylinder_spacing
         yw += min(dam.y) - min(yw)
         wall = get_particle_array(x=xw,
                                   y=yw,
-                                  rad_s=self.wall_spacing / 2.,
+                                  rho=self.cylinder_rho,
+                                  h=h,
+                                  m=m,
+                                  rad_s=self.cylinder_spacing / 2.,
                                   name="wall",
                                   constants={
-                                      'E': 30 * 1e9,
+                                      'E': 30 * 1e8,
                                       'poisson_ratio': 0.3,
                                   })
         wall.add_property('dem_id', type='int', data=max(body_id) + 2)
 
         self.scheme.setup_properties([cylinders, dam, wall])
 
-        print(cylinders.inertia_tensor_body_frame[0:9])
-        print(cylinders.total_mass)
-        print(cylinders.xcm[0:2])
+        # compute the boundary particles of the cylinders
+        cylinders.add_property('contact_force_is_boundary')
+        is_boundary = self.get_boundary_particles(max(cylinders.body_id)+1)
+        cylinders.contact_force_is_boundary[:] = is_boundary[:]
+        cylinders.is_boundary[:] = is_boundary[:]
 
-        # please run this function to know how
-        # geometry looks like
-        # from matplotlib import pyplot as plt
-        # plt.scatter(cylinders.x, cylinders.y)
-        # plt.scatter(dam.x, dam.y)
-        # plt.scatter(wall.x, wall.y)
-        # plt.axes().set_aspect('equal', 'datalim')
-        # print("done")
-        # plt.show()
+        dam.add_property('contact_force_is_boundary')
+        dam.contact_force_is_boundary[:] = dam.is_boundary[:]
+
+        # remove particles which are not used in computation
+        indices = []
+        for i in range(len(dam.x)):
+            if dam.is_boundary[i] == 0:
+                indices.append(i)
+
+        dam.remove_particles(indices)
+
+        # remove particles which are not used in computation
+        min_x = min(dam.x)
+        max_x = max(dam.x)
+        min_y = min(dam.y)
+        indices = []
+        for i in range(len(dam.x)):
+            if dam.x[i] < min_x + self.cylinder_spacing/2.:
+                indices.append(i)
+
+            if dam.y[i] < min_y + self.cylinder_spacing/2.:
+                indices.append(i)
+
+            if dam.x[i] > max_x - self.cylinder_spacing/2.:
+                indices.append(i)
+
+        dam.remove_particles(indices)
+
+        wall.add_property('contact_force_is_boundary')
+        wall.contact_force_is_boundary[:] = 1
+
         return [cylinders, dam, wall]
 
     def create_scheme(self):
-        rfc = RigidFluidCouplingScheme(rigid_bodies=['cylinders'],
-                                       fluids=[],
-                                       boundaries=['dam', 'wall'],
-                                       dim=2,
-                                       h=self.h,
-                                       nu=0.,
-                                       rho0=self.cylinder_rho,
-                                       p0=0.,
-                                       c0=0.,
-                                       kn=1e6,
-                                       en=0.3,
-                                       gy=self.gy)
-        s = SchemeChooser(default='rfc', rfc=rfc)
+        rb3d = RigidBody3DScheme(rigid_bodies=['cylinders'],
+                                 boundaries=['dam', 'wall'],
+                                 gx=0.,
+                                 gy=self.gy,
+                                 gz=0.,
+                                 dim=2)
+        s = SchemeChooser(default='rb3d', rb3d=rb3d)
         return s
 
     def configure_scheme(self):
         tf = self.tf
 
         self.scheme.configure_solver(dt=self.dt, tf=tf, pfreq=100)
+
+    def get_boundary_particles(self, no_bodies):
+        from boundary_particles import (get_boundary_identification_etvf_equations,
+                                        add_boundary_identification_properties)
+        from pysph.tools.sph_evaluator import SPHEvaluator
+        from pysph.base.kernels import (QuinticSpline)
+        # create a row of six cylinders
+        x, y = create_circle_1(
+            self.cylinder_diameter, self.cylinder_spacing, [
+                self.cylinder_radius,
+                self.cylinder_radius + self.cylinder_spacing / 2.
+            ])
+
+        m = self.cylinder_rho * self.cylinder_spacing**2
+        h = self.hdx * self.cylinder_spacing
+        rad_s = self.cylinder_spacing / 2.
+        pa = get_particle_array(name='foo',
+                                x=x,
+                                y=y,
+                                rho=self.cylinder_rho,
+                                h=h,
+                                m=m,
+                                rad_s=rad_s,
+                                constants={
+                                    'E': 69 * 1e9,
+                                    'poisson_ratio': 0.3,
+                                })
+
+        add_boundary_identification_properties(pa)
+        # make sure your rho is not zero
+        equations = get_boundary_identification_etvf_equations([pa.name],
+                                                               [pa.name])
+
+        sph_eval = SPHEvaluator(arrays=[pa],
+                                equations=equations,
+                                dim=self.dim,
+                                kernel=QuinticSpline(dim=self.dim))
+
+        sph_eval.evaluate(dt=0.1)
+
+        tmp = pa.is_boundary
+        is_boundary_tmp = np.tile(tmp, no_bodies)
+        is_boundary = is_boundary_tmp.ravel()
+
+        return is_boundary
+
 
     def create_cylinders_stack_1(self):
         # create a row of six cylinders
@@ -398,9 +471,13 @@ class ZhangStackOfCylinders(Application):
         import matplotlib.pyplot as plt
         t = np.asarray(t)
         t = t - self.wall_time
-        print(t)
 
-        data = np.loadtxt('x_com_zhang.csv', delimiter=',')
+        # gtvf data
+        path = os.path.abspath(__file__)
+        directory = os.path.dirname(path)
+
+        data = np.loadtxt(os.path.join(directory, 'x_com_zhang.csv'),
+                          delimiter=',')
         tx, xcom_zhang = data[:, 0], data[:, 1]
 
         plt.plot(tx, xcom_zhang, "s--", label='Experimental')
@@ -412,7 +489,8 @@ class ZhangStackOfCylinders(Application):
         plt.savefig(fig, dpi=300)
         plt.clf()
 
-        data = np.loadtxt('y_com_zhang.csv', delimiter=',')
+        data = np.loadtxt(os.path.join(directory, 'y_com_zhang.csv'),
+                          delimiter=',')
         ty, ycom_zhang = data[:, 0], data[:, 1]
 
         plt.plot(ty, ycom_zhang, "s--", label='Experimental')

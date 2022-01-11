@@ -108,94 +108,90 @@ A  SPH  framework  for  dynamic interaction  between  soil  and  rigid  body  sy
 \citet{wu2014two} has experimental solution to cube sinking and cube floating
 in a tank.
 
-\subsection{Cylinders collapsing under gravity in a tank}
-\label{sec:cylinders-collapsing-dem}
 
-This benchmark is taken from \citet{chen2019coupled} and
-\citet{wang2019numerical}. This is to validate the rigid contact model.
-
-Six layers of solid cylinders are stacked, and then suddenly released under
-gravity. This is done by 2009 Zhang and Canelas 2016.
-
-
-\subsection{A rigid box rotating and sinking in viscous liquid}
-\label{sec:rigid-box-rotating-sinking}
-% Numerical simulation of interactions between free surface and rigid body using
-% a robust SPH method, Pengnan Sun 2015
-
-This benchmark is taken from \citet{chen2019coupled} and
-\citet{wang2019numerical}. This is to validate the rigid contact model.
-
-Six layers of solid cylinders are stacked, and then suddenly released under
-gravity. This is done by 2009 Zhang and Canelas 2016.
-
-
-\subsection{A block of density 2000 freely falling in to a steady tank}
-\label{sec:2000-density-inside-tank}
-
-This benchmark is taken from \citet{qiu20173d}.
-
-A water tank of 150 $mm$ $\times$ 140 $mm$ $\times$ 140 $mm$ and the water
-depth in the tank was 131 $mm$. The cube with a side length of 20 $mm$. The
-density of the cube is 2120 $kg m^{-3}$. The cube is placed half way before
-the release into the fluid. The spring stiffness coefficient of 1 $\times$
-$10^{5}$ $N m^{-1}$.
+\begin{enumerate}
+\item Stack of cylinders (\citet{canelas2016sph}, \citet{wang2019numerical})
+\item A rigid box rotating and sinking in viscous liquid
+  (\citet{sun2015numerical})
+\item Water entry of 2-D cylinder (\citet{sun2015numerical})
+\item Water wedge entry (\citet{sun2015numerical})
+\item Dam break flow against cubes, single cube (\citet{canelas2016sph},
+  \citet{ji2019coupled})
+\item Dam break flow against cubes, three cubes (\citet{canelas2016sph},
+  \citet{ji2019coupled})
+\item Dam break flow against cubes, six cubes (\citet{canelas2016sph},
+  \citet{ji2019coupled})
+\item A block of density $800.52$ floating in a steady tank
+  (\citet{qiu20173d}, \citet{wang2019numerical})
+\item A block of density 2000 freely falling in to a steady tank
+  (\citet{qiu20173d}, \citet{wang2019numerical})
+\item Cylinders in water collapsed under gravity (\citet{chen2019coupled})
+\item Dam break with body transport (\citet{wang2019numerical})
+\item Dam break with multiple bodies transport (\citet{wang2019numerical})
+\end{enumerate}
 
 
-\subsection{A block of density $800.52$ floating in a steady tank}
-\label{sec:800-density-floating}
+%
+\subsection{(Partially) Stack of cylinders}
 
-This benchmark is taken from \citet{qiu20173d}, \citet{wang2019numerical}.
+Stack of cylinders (\citet{canelas2016sph}, \citet{wang2019numerical})
 
-A water tank of 150 mm $\times$ 140 mm $\times$ 140 mm and the water depth in
-the tank was 52 $mm$. A rectangular wooden block (with a width of 48 mm,
-length of 49 mm, height 24mm) whose density is 800.52 kg$m^{-1}$ is
-released from the bottom of the tank. We compare the vertical displacement of
-the center of mass of the cube.
+\begin{itemize}
+\item (TODO) Automan
+\item (TODO) Code implementation
+\item (TODO) Write in paper
+\item (TODO) Results
+\end{itemize}
+%
+\subsection{(Partially) A rigid box rotating and sinking in viscous liquid}
+
+A rigid box rotating and sinking in viscous liquid
+  (\citet{sun2015numerical})
+%
+\subsection{(Partially) Water entry of 2-D cylinder}
+
+Water entry of 2-D cylinder (\citet{sun2015numerical})
+%
+\subsection{(TODO) Water wedge entry}
+Water wedge entry (\citet{sun2015numerical})
+
+First preliminary creation of wedge, then by removing the boundary particles,
+add the particles such that they represent better boundary for wedge
+
+%
+
+\subsection{(TODO) Dam break flow against cubes, single cube}
+% code/dam_break_flow_against_a_single_cube.py
+Dam break flow against cubes, single cube (\citet{canelas2016sph},
+  \citet{ji2019coupled})
+%
+\subsection{(TODO) Dam break flow against cubes, three cubes}
+Dam break flow against cubes, three cubes (\citet{canelas2016sph},
+  \citet{ji2019coupled})
+%
+\subsection{(TODO) Dam break flow against cubes, six cubes}
+Dam break flow against cubes, six cubes (\citet{canelas2016sph},
+  \citet{ji2019coupled})
+%
+\subsection{(TODO) A block of density $800.52$ floating in a steady tank}
+A block of density $800.52$ floating in a steady tank
+  (\citet{qiu20173d}, \citet{wang2019numerical})
+%
+\subsection{(TODO) A block of density 2000 freely falling in to a steady tank}
+A block of density 2000 freely falling in to a steady tank
+  (\citet{qiu20173d}, \citet{wang2019numerical})
+%
+\subsection{(TODO) Cylinders in water collapsed under gravity}
+Cylinders in water collapsed under gravity (\citet{chen2019coupled})
+%
+\subsection{(TODO) Dam break with body transport}
+Dam break with body transport (\citet{wang2019numerical})
+%
+\subsection{(TODO) Dam break with multiple bodies transport}
+Dam break with multiple bodies transport (\citet{wang2019numerical})
+%
 
 
-\subsection{Dam break with body transport}
-\label{sec:dam-break-with-body-transport}
-
-This benchmark is taken from \citet{wang2019numerical}.
-
-Here we simulate a solid body transport in a dam break.
-
-
-\subsection{Dam break with multiple body transport}
-\label{sec:dam-break-with-multiple-body-transport}
-
-This benchmark is taken from \citet{wang2019numerical}.
-
-Here we simulate a transport of multiple bodies in a dam break.
-
-
-\subsection{Cylinders in water collapsed under gravity}
-\label{sec:cylinders-in-water-collapsed-under-gravity}
-
-This benchmark is taken from \citet{chen2019coupled}.
-
-Here we simulate a collapse of cylinders submerged in a water under gravity.
-
-
-\subsection{Single cube transport in 3d dam break with out any obstructions}
-\label{sec:single-cube-transport-in-3d-dam-break-with-out-any-obstructions}
-
-This benchmark is taken from \citet{ji2019coupled}.
-
-A single body transport under 3d dam break. Here we don't have any
-obstructions. This is done in Canelas 2016 DCDEM paper. This is different from
-Amicarelli paper.
-
-
-\subsection{Three cube transport in 3d dam break with out any obstructions}
-\label{sec:three-cube-transport-in-3d-dam-break-with-out-any-obstructions}
-
-This benchmark is taken from \citet{ji2019coupled}.
-
-Three cubes transport under 3d dam break. Here we don't have any obstructions.
-This is done in Canelas 2016 DCDEM paper. This is different from Amicarelli
-paper.
 
 
 \section{Conclusions}

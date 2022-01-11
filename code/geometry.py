@@ -153,3 +153,13 @@ def test_create_tank_2d_from_block_2d():
 
 
 # test_create_tank_2d_from_block_2d()
+def foo(x, y, angle):
+    angle = angle * np.pi / 180
+    for i in range(len(x)):
+        x_tmp = x[i]
+        y_tmp = y[i]
+        indices = []
+        if y_tmp <= - np.tan(angle) * x_tmp:
+            indices.append(i)
+
+    return indices
