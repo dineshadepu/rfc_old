@@ -108,11 +108,11 @@ class ZhangStackOfCylinders(Application):
         self.wall_height = 20 * 1e-2
         self.wall_spacing = spacing * 1e-3
         self.wall_layers = 2
-        self.wall_time = 0.1
+        self.wall_time = 0.2
         self.wall_rho = 2700
 
         # simulation properties
-        self.hdx = 1.3
+        self.hdx = 1.0
         self.alpha = 0.1
         self.gy = -9.81
         self.h = self.hdx * self.cylinder_spacing
@@ -147,6 +147,9 @@ class ZhangStackOfCylinders(Application):
         cylinders.add_property('dem_id', type='int', data=dem_id)
         cylinders.add_property('body_id', type='int', data=body_id)
         cylinders.add_constant('total_no_bodies', 35)
+        coeff_of_rest = np.ones(cylinders.nb[0]*cylinders.total_no_bodies[0],
+                                dtype=float)
+        cylinders.add_constant('coeff_of_rest', coeff_of_rest)
 
         # create dam with normals
         _xf, _yf, xd, yd = hydrostatic_tank_2d(

@@ -203,6 +203,42 @@ def normalize_R_orientation(orien):
     orien[8] = b3[2]
 
 
+def setup_damping_coefficient(body, rigid_bodies, boundaries=[]):
+    """
+    rigid_bodies: a list with names of rigid bodies
+    boundaries: a list of static boundaries
+    """
+    rb_names = [rb.name for rb in rigid_bodies]
+    bounday_names = [boundary.name for boundary in boundaries]
+
+    no_bodies_dest = max(body.body_id) + 1
+    for i in range(no_bodies_dest):
+        for src in rigid_bodies:
+            l1 = src.min_dem_id[0]
+            l2 = src.max_dem_id[0] + 1
+            for j, k in zip(range(max(src.body_id)), range(l1, l2)):
+                print(j, k)
+                t1 = body.total_mass[i] * src.total_mass[j]
+                t2 = body.total_mass[i] + src.total_mass[j]
+                m_star = t1 / t2
+
+                t1 = log(body.coeff_of_rest[idx+k])
+                t2 = t1**2. + M_PI**2.
+                tmp = (m_star / t2)**0.5
+
+                idx = i * body.total_no_bodies[0]
+                body.eta[idx+k] = -2. * t1 * tmp
+
+        for src in boundaries:
+            dem_id = src.max_dem_id[0]
+            m_star = d_total_mass[d_idx]
+            t1 = log(e)
+            t2 = t1**2. + M_PI**2.
+            tmp = (m_star / t2)**0.5
+            eta = -2. * t1 * tmp
+            body.eta[idx+dem_id] = -2. * t1 * tmp
+
+
 class RigidBodyCanelasRigidRigid(Equation):
     """
     canelas2016sph
@@ -859,16 +895,32 @@ class ComputeContactForce(Equation):
             t2 = t1 + i
             overlap = d_initial_spacing0[0] - d_contact_force_dist[t2]
             if overlap > 0. and overlap != d_initial_spacing0[0]:
-                d_overlap[t2] = overlap
-                tmp = self.kr * overlap
-
-                fn_x = tmp * d_contact_force_normal_x[t2]
-                fn_y = tmp * d_contact_force_normal_y[t2]
-                fn_z = tmp * d_contact_force_normal_z[t2]
-
                 vij_x = d_u[d_idx] - d_vx_source[t2]
                 vij_y = d_v[d_idx] - d_vy_source[t2]
                 vij_z = d_w[d_idx] - d_vz_source[t2]
+
+                # the tangential vector is
+                ni_x = d_contact_force_normal_x[t2]
+                ni_y = d_contact_force_normal_y[t2]
+                ni_z = d_contact_force_normal_z[t2]
+
+                vij_dot_ni = vij_x * ni_x + vij_y * ni_y + vij_z * ni_z
+
+                d_overlap[t2] = overlap
+                tmp = self.kr * overlap
+
+                # ===============================
+                # compute the damping coefficient
+                # ===============================
+                eta = d_eta_source[i * d_total_no_bodies[0] + dem_id]
+                eta = eta * self.kr**0.5
+                # ===============================
+                # compute the damping coefficient
+                # ===============================
+
+                fn_x = (tmp - eta * vij_dot_ni) * ni_x
+                fn_y = (tmp - eta * vij_dot_ni) * ni_y
+                fn_z = (tmp - eta * vij_dot_ni) * ni_z
 
                 # check if there is relative motion
                 vij_magn = (vij_x**2. + vij_y**2. + vij_z**2.)**0.5
@@ -886,13 +938,6 @@ class ComputeContactForce(Equation):
                     d_ti_z[t2] = 0.
 
                 else:
-                    # the tangential vector is
-                    ni_x = d_contact_force_normal_x[t2]
-                    ni_y = d_contact_force_normal_y[t2]
-                    ni_z = d_contact_force_normal_z[t2]
-
-                    vij_dot_ni = vij_x * ni_x + vij_y * ni_y + vij_z * ni_z
-
                     tx_tmp = vij_x - ni_x * vij_dot_ni
                     ty_tmp = vij_y - ni_y * vij_dot_ni
                     tz_tmp = vij_z - ni_z * vij_dot_ni

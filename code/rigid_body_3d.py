@@ -577,7 +577,7 @@ class RK2RigidBody3DStep(IntegratorStep):
 
 class RigidBody3DScheme(Scheme):
     def __init__(self, rigid_bodies, boundaries, dim,
-                 kr=1e5, kf=1e5, fric_coeff=0.5, gx=0.0, gy=0.0, gz=0.0):
+                 kr=1e5, kf=1e5, en=0.5, fric_coeff=0.5, gx=0.0, gy=0.0, gz=0.0):
         self.rigid_bodies = rigid_bodies
 
         if boundaries is None:
@@ -829,6 +829,10 @@ class RigidBody3DScheme(Scheme):
 
             for key, elem in consts.items():
                 pa.add_constant(key, elem)
+
+            pa.add_constant('min_dem_id', min(pa.dem_id))
+            pa.add_constant('max_dem_id', max(pa.dem_id))
+            pa.add_constant('eta', nb * pa.total_no_bodies[0])
 
             # compute the properties of the body
             set_total_mass(pa)
