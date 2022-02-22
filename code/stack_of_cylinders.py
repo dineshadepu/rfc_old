@@ -15,6 +15,7 @@ from pysph.base.utils import (get_particle_array)
 
 # from rigid_fluid_coupling import RigidFluidCouplingScheme
 from rigid_body_3d import RigidBody3DScheme
+from rigid_body_common import setup_damping_coefficient
 
 from pysph.tools.geometry import get_2d_block, get_2d_tank
 
@@ -147,9 +148,6 @@ class ZhangStackOfCylinders(Application):
         cylinders.add_property('dem_id', type='int', data=dem_id)
         cylinders.add_property('body_id', type='int', data=body_id)
         cylinders.add_constant('total_no_bodies', 35)
-        coeff_of_rest = np.ones(cylinders.nb[0]*cylinders.total_no_bodies[0],
-                                dtype=float)
-        cylinders.add_constant('coeff_of_rest', coeff_of_rest)
 
         # create dam with normals
         _xf, _yf, xd, yd = hydrostatic_tank_2d(
@@ -230,6 +228,11 @@ class ZhangStackOfCylinders(Application):
         wall.add_property('contact_force_is_boundary')
         wall.contact_force_is_boundary[:] = 1
 
+        coeff_of_rest = np.ones(cylinders.nb[0]*cylinders.total_no_bodies[0],
+                                dtype=float) * 0.6
+        cylinders.add_constant('coeff_of_rest', coeff_of_rest)
+        setup_damping_coefficient(cylinders, [cylinders], boundaries=[dam, wall])
+
         return [cylinders, dam, wall]
 
     def create_scheme(self):
@@ -238,7 +241,8 @@ class ZhangStackOfCylinders(Application):
                                  gx=0.,
                                  gy=self.gy,
                                  gz=0.,
-                                 dim=2)
+                                 dim=2,
+                                 fric_coeff=0.45)
         s = SchemeChooser(default='rb3d', rb3d=rb3d)
         return s
 

@@ -216,23 +216,23 @@ def setup_damping_coefficient(body, rigid_bodies, boundaries=[]):
         for src in rigid_bodies:
             l1 = src.min_dem_id[0]
             l2 = src.max_dem_id[0] + 1
-            for j, k in zip(range(max(src.body_id)), range(l1, l2)):
-                print(j, k)
+            for j, k in zip(range(max(src.body_id)+1), range(l1, l2)):
                 t1 = body.total_mass[i] * src.total_mass[j]
                 t2 = body.total_mass[i] + src.total_mass[j]
                 m_star = t1 / t2
 
+                idx = i * body.total_no_bodies[0]
                 t1 = log(body.coeff_of_rest[idx+k])
                 t2 = t1**2. + M_PI**2.
                 tmp = (m_star / t2)**0.5
 
-                idx = i * body.total_no_bodies[0]
                 body.eta[idx+k] = -2. * t1 * tmp
 
         for src in boundaries:
-            dem_id = src.max_dem_id[0]
-            m_star = d_total_mass[d_idx]
-            t1 = log(e)
+            idx = i * body.total_no_bodies[0]
+            dem_id = src.dem_id[0]
+            m_star = body.total_mass[i]
+            t1 = log(body.coeff_of_rest[idx+dem_id])
             t2 = t1**2. + M_PI**2.
             tmp = (m_star / t2)**0.5
             eta = -2. * t1 * tmp
@@ -786,6 +786,7 @@ class ComputeContactForceDistanceAndClosestPoint(Equation):
              d_dem_id,
              s_dem_id,
              d_total_no_bodies,
+             d_dem_id_source,
              dt, t, WIJ, RIJ, XIJ):
         i, t1, t2, t3 = declare('int', 4)
 
@@ -794,12 +795,15 @@ class ComputeContactForceDistanceAndClosestPoint(Equation):
                 t1 = d_total_no_bodies[0] * d_idx
                 t2 = t1 + s_dem_id[s_idx]
 
+                d_dem_id_source[t2] = s_dem_id[s_idx]
+
                 tmp = d_m[d_idx] / (d_rho[d_idx]) * WIJ
                 tmp_1 = (d_contact_force_normal_x[t2] * XIJ[0] +
                          d_contact_force_normal_y[t2] * XIJ[1])
                 d_contact_force_dist_tmp[t2] += tmp_1 * tmp
 
                 d_contact_force_normal_wij[t2] += tmp
+
 
                 if RIJ < d_closest_point_dist_to_source[t2]:
                     d_closest_point_dist_to_source[t2] = RIJ
@@ -851,6 +855,7 @@ class ComputeContactForce(Equation):
     def post_loop(self,
                   d_idx,
                   d_m,
+                  d_body_id,
                   d_contact_force_normal_x,
                   d_contact_force_normal_y,
                   d_contact_force_normal_z,
@@ -882,9 +887,11 @@ class ComputeContactForce(Equation):
                   d_x_source,
                   d_y_source,
                   d_z_source,
+                  d_dem_id_source,
                   d_ti_x,
                   d_ti_y,
                   d_ti_z,
+                  d_eta,
                   d_initial_spacing0,
                   d_total_no_bodies,
                   dt, t):
@@ -912,7 +919,7 @@ class ComputeContactForce(Equation):
                 # ===============================
                 # compute the damping coefficient
                 # ===============================
-                eta = d_eta_source[i * d_total_no_bodies[0] + dem_id]
+                eta = d_eta[d_body_id[d_idx] * d_total_no_bodies[0] + d_dem_id_source[t2]]
                 eta = eta * self.kr**0.5
                 # ===============================
                 # compute the damping coefficient

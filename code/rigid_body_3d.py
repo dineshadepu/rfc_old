@@ -832,7 +832,13 @@ class RigidBody3DScheme(Scheme):
 
             pa.add_constant('min_dem_id', min(pa.dem_id))
             pa.add_constant('max_dem_id', max(pa.dem_id))
-            pa.add_constant('eta', nb * pa.total_no_bodies[0])
+
+            eta = np.zeros(pa.nb[0]*pa.total_no_bodies[0] * 1,
+                           dtype=float)
+            pa.add_constant('eta', eta)
+
+            pa.add_property(name='dem_id_source', stride=pa.total_no_bodies[0],
+                            type='int')
 
             # compute the properties of the body
             set_total_mass(pa)

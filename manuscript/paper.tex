@@ -32,7 +32,7 @@
 
 \begin{frontmatter}
 
-  \title{Write title here}
+  \title{Rigid fluid coupling}
   \author[IITB]{Adepu Dinesh \corref{cor1}}
   \ead{adepu.dinesh.a@gmail.com} \author[IITB]{Prabhu Ramachandran}
   \ead{prabhu@aero.iitb.ac.in} \address[IITB]{Department of Aerospace
@@ -61,148 +61,99 @@
 
 
 
-\section{Fluid mechanics}
+\section{Governing equations}
 \label{sec:fluid-mechanics}
 
 
+\section{CTVF formulation}
+\label{sec:ctvf-equations}
+
+
+\section{SPH discretization}
+\label{sec:sph-fluid-equations}
+
 
 \section{Rigid body dynamics}
-\label{sec:rbd-dynamics}
-
-\subsection{A rigid body on a boundary}
-
-Consider a square rigid body on a surface, the density of the body is 800
-kg$m^{-3}$, the simulation is in 2 dimensions. The side of the body is
-$0.5$m. The stiffness in the normal direction is $10^5$N$m^{-1}$.
-
-\textbf{The analysis corresponding to the current section is done in file
-  code $rigidbodyonasurface.py$}
+\label{sec:rbd}
 
 
+\section{How to handle rigid fluid coupling}
+\label{sec:rfc}
 
 
-\section{Rigid body contact model}
-\label{sec:rbd-contact-model}
+\section{Collision between rigid bodies}
+\label{sec:contact-force}
 
-In the SPH literature there are a few ways to model the contact
-between rigid bodies. Few ways to note are
-
-\begin{itemize}
-\item \citet{albano2016modelling} models using pure elastic impingement force
-% Development of the Resolved Fluid-Solid SPH Coupling using Rigid Body Dynamics
-\item \citet{choidevelopment} models using DEM
-\item \citet{zhan2020sph} uses hybrid contact model
-\item \citet{} uses hybrid contact model
-\end{itemize}
-A  SPH  framework  for  dynamic interaction  between  soil  and  rigid  body  system  with  hybrid contact   metho
+\citet{chen2019coupled} has damping model. Also he mentioned the parameters
+required in stack of cylinders example.
 
 
-\section{Rigid fluid coupling}
-\label{sec:rf-coupling}
-
+% \todoin{
+% \begin{itemize}
+% \item \citet{albano2016modelling} models using pure elastic impingement force
+% % Development of the Resolved Fluid-Solid SPH Coupling using Rigid Body Dynamics
+% \item \citet{choidevelopment} models using DEM
+% \item \citet{zhan2020sph} uses hybrid contact model
+% \end{itemize}
+% A SPH framework for dynamic interaction between soil and rigid body system
+% with hybrid contact method}
 
 
 
 \section{Results and discussion}
 \label{sec:results}
-\citet{wu2014two} has experimental solution to cube sinking and cube floating
-in a tank.
+
+\subsection{Rigid block of different densities allowed to sink into water}
+\label{sec:rigid-block-diff}
 
 
-\begin{enumerate}
-\item Stack of cylinders (\citet{canelas2016sph}, \citet{wang2019numerical})
-\item A rigid box rotating and sinking in viscous liquid
-  (\citet{sun2015numerical})
-\item Water entry of 2-D cylinder (\citet{sun2015numerical})
-\item Water wedge entry (\citet{sun2015numerical})
-\item Dam break flow against cubes, single cube (\citet{canelas2016sph},
-  \citet{ji2019coupled})
-\item Dam break flow against cubes, three cubes (\citet{canelas2016sph},
-  \citet{ji2019coupled})
-\item Dam break flow against cubes, six cubes (\citet{canelas2016sph},
-  \citet{ji2019coupled})
-\item A block of density $800.52$ floating in a steady tank
-  (\citet{qiu20173d}, \citet{wang2019numerical})
-\item A block of density 2000 freely falling in to a steady tank
-  (\citet{qiu20173d}, \citet{wang2019numerical})
-\item Cylinders in water collapsed under gravity (\citet{chen2019coupled})
-\item Dam break with body transport (\citet{wang2019numerical})
-\item Dam break with multiple bodies transport (\citet{wang2019numerical})
-\end{enumerate}
+\subsection{A 2d and 3d rigid body sliding}
+\label{sec:rigid-body-sliding}
 
 
-%
-\subsection{(Partially) Stack of cylinders}
-
-Stack of cylinders (\citet{canelas2016sph}, \citet{wang2019numerical})
-
-\begin{itemize}
-\item (TODO) Automan
-\item (TODO) Code implementation
-\item (TODO) Write in paper
-\item (TODO) Results
-\end{itemize}
-%
-\subsection{(Partially) A rigid box rotating and sinking in viscous liquid}
-
-A rigid box rotating and sinking in viscous liquid
-  (\citet{sun2015numerical})
-%
-\subsection{(Partially) Water entry of 2-D cylinder}
-
-Water entry of 2-D cylinder (\citet{sun2015numerical})
-%
-\subsection{(TODO) Water wedge entry}
-Water wedge entry (\citet{sun2015numerical})
-
-First preliminary creation of wedge, then by removing the boundary particles,
-add the particles such that they represent better boundary for wedge
-
-%
-
-\subsection{(TODO) Dam break flow against cubes, single cube}
-% code/dam_break_flow_against_a_single_cube.py
-Dam break flow against cubes, single cube (\citet{canelas2016sph},
-  \citet{ji2019coupled})
-%
-\subsection{(TODO) Dam break flow against cubes, three cubes}
-Dam break flow against cubes, three cubes (\citet{canelas2016sph},
-  \citet{ji2019coupled})
-%
-\subsection{(TODO) Dam break flow against cubes, six cubes}
-Dam break flow against cubes, six cubes (\citet{canelas2016sph},
-  \citet{ji2019coupled})
-%
-\subsection{(TODO) A block of density $800.52$ floating in a steady tank}
-A block of density $800.52$ floating in a steady tank
-  (\citet{qiu20173d}, \citet{wang2019numerical})
-%
-\subsection{(TODO) A block of density 2000 freely falling in to a steady tank}
-A block of density 2000 freely falling in to a steady tank
-  (\citet{qiu20173d}, \citet{wang2019numerical})
-%
-\subsection{(TODO) Cylinders in water collapsed under gravity}
-Cylinders in water collapsed under gravity (\citet{chen2019coupled})
-%
-\subsection{(TODO) Dam break with body transport}
-Dam break with body transport (\citet{wang2019numerical})
-%
-\subsection{(TODO) Dam break with multiple bodies transport}
-Dam break with multiple bodies transport (\citet{wang2019numerical})
-%
+\subsection{Bouncing cube on a wall under gravity}
+\label{sec:bouncing-cube}
 
 
+\subsection{Stack of cylinders}
+\label{sec:stack-of-cylinders}
+
+
+\subsection{A test to check the conservation properties of rigid body}
+\label{sec:conservation-of-rb-properties}
+
+
+\subsection{Debris dam break flow}
+\label{sec:debris-dam-break-canelas}
+
+\subsubsection{Case I}
+\label{sec:debris-dam-break-canelas-case-I}
+
+\subsubsection{Case II}
+\label{sec:debris-dam-break-canelas-case-II}
+
+
+\subsubsection{Case III}
+\label{sec:debris-dam-break-canelas-case-III}
+
+
+\subsection{Dam break with body transport}
+\label{sec:dam-break-with-body-transport}
+
+\citet{wang2019numerical}
+
+\subsection{Dam break with multiple bodies transport}
+\label{sec:dam-break-with-multiple-bodies-transport}
+\citet{wang2019numerical}
+
+
+\subsection{Cylinders in water collapsed under gravity}
+\label{sec:cylinders-collapse-in-water}
+\citet{chen2019coupled}
 
 
 \section{Conclusions}
 \label{sec:conclusions}
-
-
-\section*{References}
-\label{sec:references}
-
-The adaptive fluid solid interaction is done by \citet{hu2019consistent}.
-
 
 \section*{References}
 \bibliographystyle{model6-num-names}
