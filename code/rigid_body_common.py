@@ -747,7 +747,7 @@ class ComputeContactForceDistanceAndClosestPoint(Equation):
                    d_x_source,
                    d_y_source,
                    d_z_source,
-                   d_initial_spacing0,
+                   d_spacing0,
                    d_total_no_bodies,
                    dt, t):
         i, t1, t2 = declare('int', 3)
@@ -760,7 +760,7 @@ class ComputeContactForceDistanceAndClosestPoint(Equation):
             d_contact_force_dist_tmp[t2] = 0.
             d_contact_force_normal_wij[t2] = 0.
 
-            d_closest_point_dist_to_source[t2] = 4. * d_initial_spacing0[0]
+            d_closest_point_dist_to_source[t2] = 4. * d_spacing0[0]
             d_vx_source[t2] = 0.
             d_vy_source[t2] = 0.
             d_vz_source[t2] = 0.
@@ -892,7 +892,7 @@ class ComputeContactForce(Equation):
                   d_ti_y,
                   d_ti_z,
                   d_eta,
-                  d_initial_spacing0,
+                  d_spacing0,
                   d_total_no_bodies,
                   dt, t):
         i, t1, t2 = declare('int', 3)
@@ -900,8 +900,8 @@ class ComputeContactForce(Equation):
 
         for i in range(d_total_no_bodies[0]):
             t2 = t1 + i
-            overlap = d_initial_spacing0[0] - d_contact_force_dist[t2]
-            if overlap > 0. and overlap != d_initial_spacing0[0]:
+            overlap = d_spacing0[0] - d_contact_force_dist[t2]
+            if overlap > 0. and overlap != d_spacing0[0]:
                 vij_x = d_u[d_idx] - d_vx_source[t2]
                 vij_y = d_v[d_idx] - d_vy_source[t2]
                 vij_z = d_w[d_idx] - d_vz_source[t2]

@@ -31,17 +31,16 @@ from pysph.sph.integrator_step import IntegratorStep
 from pysph.base.kernels import (CubicSpline, WendlandQuintic, QuinticSpline,
                                 WendlandQuinticC4, Gaussian, SuperGaussian)
 
-from rigid_body_common import (set_total_mass, set_center_of_mass,
+from rigid_body_common import (add_properties_stride,
+                               set_total_mass, set_center_of_mass,
                                set_body_frame_position_vectors,
                                set_body_frame_normal_vectors,
                                set_moment_of_inertia_and_its_inverse,
                                BodyForce, SumUpExternalForces,
-                               normalize_R_orientation, RigidBodyLVC,
-                               RigidBodyCanelasRigidRigid,
-                               RigidBodyCanelasRigidWall,
-                               RigidBodyBuiRigidRigid)
-
-from dem import UpdateTangentialContactsLVCDisplacement, UpdateTangentialContactsLVCForce
+                               normalize_R_orientation,
+                               ComputeContactForceNormals,
+                               ComputeContactForceDistanceAndClosestPoint,
+                               ComputeContactForce)
 
 # compute the boundary particles
 from boundary_particles import (get_boundary_identification_etvf_equations,
@@ -555,11 +554,9 @@ class EDACEquationFSI(Equation):
 
 class RigidFluidCouplingScheme(Scheme):
     def __init__(self, fluids, boundaries, rigid_bodies, dim, rho0, p0, c0, h,
-                 nu, kn=1e7, en=0.5, Cn=1.4*1e-5, gamma=7.0, integrator="rk2",
-                 dem="bui", gx=0.0, gy=0.0, gz=0.0, alpha=0.1, beta=0.0,
+                 nu, kr=1e5, kf=1e5, en=0.5, fric_coeff=0.5, gamma=7.0,
+                 gx=0.0, gy=0.0, gz=0.0, alpha=0.1, beta=0.0,
                  kernel_choice="1", kernel_factor=3, edac_alpha=0.5):
-        self.rigid_bodies = rigid_bodies
-
         if boundaries is None:
             self.boundaries = []
         else:
@@ -581,17 +578,9 @@ class RigidFluidCouplingScheme(Scheme):
         self.art_nu = 0.
         self.nu = nu
 
-        # rigid body parameters
-        self.kn = kn
-        self.en = en
-        self.Cn = Cn
-
         self.dim = dim
 
         self.kernel = CubicSpline
-
-        self.integrator = integrator
-        self.dem = dem
 
         self.rho0 = rho0
         self.p0 = p0
@@ -601,6 +590,10 @@ class RigidFluidCouplingScheme(Scheme):
         self.gx = gx
         self.gy = gy
         self.gz = gz
+        self.kr = kr
+        self.kf = kf
+        self.fric_coeff = fric_coeff
+        self.en = en
 
         self.alpha = alpha
         self.beta = beta
@@ -608,24 +601,23 @@ class RigidFluidCouplingScheme(Scheme):
         self.solver = None
 
     def add_user_options(self, group):
-        choices = ['rk2', 'gtvf']
-        group.add_argument("--integrator",
-                           action="store",
-                           dest='integrator',
-                           default="gtvf",
-                           choices=choices,
-                           help="Specify what integrator to use " % choices)
+        group.add_argument("--kr-stiffness", action="store",
+                           dest="kr", default=1e5,
+                           type=float,
+                           help="Repulsive spring stiffness")
 
-        choices = ['bui', 'canelas']
-        group.add_argument("--dem",
-                           action="store",
-                           dest='dem',
-                           default="bui",
-                           choices=choices,
-                           help="DEM interaction " % choices)
+        group.add_argument("--kf-stiffness", action="store",
+                           dest="kf", default=1e3,
+                           type=float,
+                           help="Tangential spring stiffness")
+
+        group.add_argument("--fric-coeff", action="store",
+                           dest="fric_coeff", default=0.5,
+                           type=float,
+                           help="Friction coefficient")
 
     def consume_user_options(self, options):
-        _vars = ['integrator', 'dem']
+        _vars = ['kr', 'kf', 'fric_coeff']
         data = dict((var, self._smart_getattr(options, var)) for var in _vars)
         self.configure(**data)
 
@@ -634,9 +626,6 @@ class RigidFluidCouplingScheme(Scheme):
             self.art_nu = self.edac_alpha * self.h * self.c0 / 8
 
     def get_equations(self):
-        return self._get_gtvf_equations()
-
-    def _get_gtvf_equations(self):
         # elastic solid equations
         from pysph.sph.equation import Group
         from pysph.sph.wc.basic import (MomentumEquation, TaitEOS)
@@ -736,14 +725,22 @@ class RigidFluidCouplingScheme(Scheme):
         # Handle rigid bodies #
         #######################
         if len(self.rigid_bodies) > 0:
-            tmp = []
-            # update the contacts first
-            # for name in self.rigid_bodies:
-            #     tmp.append(
-            #         # see the previous examples and write down the sources
-            #         UpdateTangentialContactsLVCForce(dest=name, sources=self.rigid_bodies+self.boundaries))
-            # stage2.append(Group(equations=tmp, real=False))
+            g5 = []
+            for name in self.rigid_bodies:
+                g5.append(
+                    ComputeContactForceNormals(dest=name,
+                                               sources=self.rigid_bodies+self.boundaries))
 
+            stage2.append(Group(equations=g5, real=False))
+
+            g5 = []
+            for name in self.rigid_bodies:
+                g5.append(
+                    ComputeContactForceDistanceAndClosestPoint(
+                        dest=name, sources=self.rigid_bodies+self.boundaries))
+            stage2.append(Group(equations=g5, real=False))
+
+        if len(self.rigid_bodies) > 0:
             g5 = []
             for name in self.rigid_bodies:
                 g5.append(
@@ -752,22 +749,16 @@ class RigidFluidCouplingScheme(Scheme):
                               gx=self.gx,
                               gy=self.gy,
                               gz=self.gz))
+            stage2.append(Group(equations=g5, real=False))
 
+            g5 = []
             for name in self.rigid_bodies:
-                if self.dem == "canelas":
-                    g5.append(RigidBodyCanelasRigidRigid(dest=name, sources=self.rigid_bodies,
-                                                         Cn=self.Cn))
-                elif self.dem == "bui":
-                    g5.append(RigidBodyBuiRigidRigid(dest=name, sources=self.rigid_bodies,
-                                                     en=self.en))
-
-                if len(self.boundaries) > 0:
-                    if self.dem == "canelas":
-                        g5.append(RigidBodyCanelasRigidWall(dest=name, sources=self.boundaries,
-                                                            Cn=self.Cn))
-                    elif self.dem == "bui":
-                        g5.append(RigidBodyBuiRigidRigid(dest=name, sources=self.boundaries,
-                                                         en=self.en))
+                g5.append(
+                    ComputeContactForce(dest=name,
+                                        sources=None,
+                                        kr=self.kr,
+                                        kf=self.kf,
+                                        fric_coeff=self.fric_coeff))
 
             # add the force due to fluid
             if len(self.fluids) > 0:
@@ -828,9 +819,43 @@ class RigidFluidCouplingScheme(Scheme):
         for rigid_body in self.rigid_bodies:
             pa = pas[rigid_body]
 
-            add_properties(pa, 'fx', 'fy', 'fz', 'dx0', 'dy0', 'dz0')
+            # properties to find the find on the rigid body by
+            # Mofidi, Drescher, Emden, Teschner
+            add_properties_stride(pa, pa.total_no_bodies[0],
+                                  'contact_force_normal_x',
+                                  'contact_force_normal_y',
+                                  'contact_force_normal_z',
+                                  'contact_force_normal_wij',
 
-            add_properties(pa, 'rho_fsi', 'm_fsi', 'p_fsi')
+                                  'contact_force_normal_tmp_x',
+                                  'contact_force_normal_tmp_y',
+                                  'contact_force_normal_tmp_z',
+
+                                  'contact_force_dist_tmp',
+                                  'contact_force_dist',
+
+                                  'overlap',
+                                  'ft_x',
+                                  'ft_y',
+                                  'ft_z',
+                                  'fn_x',
+                                  'fn_y',
+                                  'fn_z',
+                                  'delta_lt_x',
+                                  'delta_lt_y',
+                                  'delta_lt_z',
+                                  'vx_source',
+                                  'vy_source',
+                                  'vz_source',
+                                  'x_source',
+                                  'y_source',
+                                  'z_source',
+                                  'ti_x',
+                                  'ti_y',
+                                  'ti_z',
+                                  'closest_point_dist_to_source')
+
+            add_properties(pa, 'fx', 'fy', 'fz', 'dx0', 'dy0', 'dz0')
 
             nb = int(np.max(pa.body_id) + 1)
 
@@ -888,6 +913,16 @@ class RigidFluidCouplingScheme(Scheme):
             for key, elem in consts.items():
                 pa.add_constant(key, elem)
 
+            pa.add_constant('min_dem_id', min(pa.dem_id))
+            pa.add_constant('max_dem_id', max(pa.dem_id))
+
+            eta = np.zeros(pa.nb[0]*pa.total_no_bodies[0] * 1,
+                           dtype=float)
+            pa.add_constant('eta', eta)
+
+            pa.add_property(name='dem_id_source', stride=pa.total_no_bodies[0],
+                            type='int')
+
             # compute the properties of the body
             set_total_mass(pa)
             set_center_of_mass(pa)
@@ -919,60 +954,23 @@ class RigidFluidCouplingScheme(Scheme):
             sph_eval.evaluate(dt=0.1)
 
             # make normals of particle other than boundary particle as zero
-            for i in range(len(pa.x)):
-                if pa.is_boundary[i] == 0:
-                    pa.normal[3 * i] = 0.
-                    pa.normal[3 * i + 1] = 0.
-                    pa.normal[3 * i + 2] = 0.
+            # for i in range(len(pa.x)):
+            #     if pa.is_boundary[i] == 0:
+            #         pa.normal[3 * i] = 0.
+            #         pa.normal[3 * i + 1] = 0.
+            #         pa.normal[3 * i + 2] = 0.
 
             # normal vectors in terms of body frame
             set_body_frame_normal_vectors(pa)
 
             # Adami boundary conditions. SetWallVelocity
+            add_properties(pa, 'rho_fsi', 'm_fsi', 'p_fsi')
             add_properties(pa, 'ug', 'vf', 'vg', 'wg', 'uf', 'wf', 'wij')
             pa.add_property('wij')
 
-            ##########################################
-            # Add dem contact force model properties #
-            ##########################################
-            # create the array to save the tangential interaction particles
-            # index and other variables
-            # HERE `tng` is tangential
-            limit = pa.max_tng_contacts_limit[0]
-            pa.add_property('tng_idx', stride=limit, type="int")
-            pa.tng_idx[:] = -1
-            pa.add_property('tng_idx_dem_id', stride=limit, type="int")
-            pa.tng_idx_dem_id[:] = -1
-
-            # if self.contact_model == "LVC":
-            pa.add_property('tng_fx', stride=limit)
-            pa.add_property('tng_fy', stride=limit)
-            pa.add_property('tng_fz', stride=limit)
-
-            pa.add_property('tng_x', stride=limit)
-            pa.add_property('tng_y', stride=limit)
-            pa.add_property('tng_z', stride=limit)
-            # pa.add_property('tng_fx0', stride=limit)
-            # pa.add_property('tng_fy0', stride=limit)
-            # pa.add_property('tng_fz0', stride=limit)
-            pa.tng_fx[:] = 0.
-            pa.tng_fy[:] = 0.
-            pa.tng_fz[:] = 0.
-            # pa.tng_fx0[:] = 0.
-            # pa.tng_fy0[:] = 0.
-            # pa.tng_fz0[:] = 0.
-
-            pa.add_property('total_tng_contacts', type="int")
-            pa.total_tng_contacts[:] = 0
-
-            if self.dem == "bui":
-                pa.add_property('bui_total_contacts', type="int")
-                pa.bui_total_contacts[:] = 0
-                pa.add_output_arrays(['bui_total_contacts'])
-
             pa.set_output_arrays([
                 'x', 'y', 'z', 'u', 'v', 'w', 'fx', 'fy', 'normal',
-                'is_boundary', 'fz', 'm', 'body_id', 'p_fsi'
+                'is_boundary', 'fz', 'm', 'body_id', 'h'
             ])
 
         for boundary in self.boundaries:
