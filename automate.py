@@ -532,6 +532,110 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
                     shutil.copy(os.path.join(source, file_name), target_dir)
 
 
+class Mohseni2021FreeSlidingOnASlope3D(Problem):
+    def get_name(self):
+        return 'mohseni_2021_free_sliding_on_a_slope_3d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/mohseni_2021_free_sliding_on_a_slope_3d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'fric_coeff_0_2': (dict(
+                scheme='rfc',
+                detail=None,
+                pfreq=300,
+                kr=1e5,
+                fric_coeff=0.2,
+                tf=3.,
+                ), r'$\mu=$0.2'),
+
+            'fric_coeff_0_4': (dict(
+                scheme='rfc',
+                detail=None,
+                pfreq=300,
+                kr=1e5,
+                fric_coeff=0.4,
+                tf=3.,
+                ), r'$\mu=$0.4'),
+
+            'fric_coeff_tan_30': (dict(
+                scheme='rfc',
+                detail=None,
+                pfreq=300,
+                kr=1e5,
+                fric_coeff=np.tan(np.pi/6),
+                tf=3.,
+                ), r'$\mu=$tan(30)'),
+
+            'fric_coeff_0.6': (dict(
+                scheme='rfc',
+                detail=None,
+                pfreq=300,
+                kr=1e5,
+                fric_coeff=0.6,
+                tf=3.,
+                ), r'$\mu=$0.6'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+        self.plot_velocity()
+        self.move_figures()
+
+    def plot_velocity(self):
+        data = {}
+        for name in self.case_info:
+            data[name] = np.load(self.input_path(name, 'results.npz'))
+
+        for name in self.case_info:
+            t_analytical = data[name]['t_analytical']
+            v_analytical = data[name]['v_analytical']
+
+            t = data[name]['t']
+            velocity_rbd = data[name]['velocity_rbd']
+
+            plt.plot(t_analytical, v_analytical, label=self.case_info[name][1] + ' analytical')
+            plt.scatter(t, velocity_rbd, s=1, label=self.case_info[name][1])
+
+        plt.xlabel('time')
+        plt.ylabel('')
+        plt.legend(prop={'size': 12})
+        # plt.tight_layout(pad=0)
+        plt.savefig(self.output_path('velocity_vs_time.pdf'))
+        plt.clf()
+        plt.close()
+
+    def move_figures(self):
+        import shutil
+        import os
+
+        for name in self.case_info:
+            source = self.input_path(name)
+
+            target_dir = "manuscript/figures/" + source[8:] + "/"
+            os.makedirs(target_dir)
+            # print(target_dir)
+
+            file_names = os.listdir(source)
+
+            for file_name in file_names:
+                # print(file_name)
+                if file_name.endswith((".jpg", ".pdf", ".png")):
+                    # print(target_dir)
+                    shutil.copy(os.path.join(source, file_name), target_dir)
+
+
 if __name__ == '__main__':
     import matplotlib
     matplotlib.use('pdf')
@@ -539,6 +643,7 @@ if __name__ == '__main__':
     PROBLEMS = [
         # first problem
         Mohseni2021FreeSlidingOnASlope2D,
+        Mohseni2021FreeSlidingOnASlope3D,
 
         StackOfCylinders,
         WedgeEntry2D,
