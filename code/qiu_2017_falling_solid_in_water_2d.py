@@ -1,11 +1,7 @@
-"""[1] Particle-Based Numerical Simulation Study of Solid Particle
-Erosion of Ductile Materials Leading to an Erosion Model,
-Including the Particle Shape Effect
+"""[1] A 3D simulation of a moving solid in viscous free-surface flows by
+coupling SPH and DEM
 
-https://doi.org/10.3390/ma15010286
-
-
-3.3.2 Free sliding on a slope
+3.2 Falling solid in water.
 
 """
 from __future__ import print_function
@@ -20,8 +16,10 @@ from pysph.base.utils import (get_particle_array)
 from rigid_fluid_coupling import RigidFluidCouplingScheme
 from pysph.sph.equation import Equation, Group
 import os
+from pysph.tools import geometry as G
 
 from pysph.tools.geometry import get_2d_block, get_2d_tank, rotate
+from geometry import hydrostatic_tank_2d
 
 
 def create_circle_1(diameter=1, spacing=0.05, center=None):
@@ -73,27 +71,6 @@ def create_circle(diameter=1, spacing=0.05, center=None):
         return x + center[0], y + center[1]
 
 
-def hydrostatic_tank_2d(fluid_length, fluid_height, tank_height, tank_layers,
-                        fluid_spacing, tank_spacing):
-    xt, yt = get_2d_tank(dx=tank_spacing,
-                         length=fluid_length + 2. * tank_spacing,
-                         height=tank_height,
-                         num_layers=tank_layers)
-    xf, yf = get_2d_block(dx=fluid_spacing,
-                          length=fluid_length,
-                          height=fluid_height,
-                          center=[-1.5, 1])
-
-    xf += (np.min(xt) - np.min(xf))
-    yf -= (np.min(yf) - np.min(yt))
-
-    # now adjust inside the tank
-    xf += tank_spacing * (tank_layers)
-    yf += tank_spacing * (tank_layers)
-
-    return xf, yf, xt, yt
-
-
 def get_contact_force_is_boundary(x, y, spacing):
     """To understand this snipped please comment few lines and check the
     viewer to see the boundary particles
@@ -123,96 +100,71 @@ def setup_properties_for_gradual_force(pa):
     pa.add_property('force_idx_ft', type='int', data=force_idx_ft)
 
 
-def force_index_single(body):
-    max_y = np.max(body.y)
-
-    indices_fn = np.where(max_y == body.y)[0]
-    body.force_idx_fn[indices_fn] = 1
-
-    min_x = np.min(body.x)
-    indices_ft = np.where(min_x == body.x)[0]
-    body.force_idx_ft[indices_ft] = 1
-
-
-class ApplyForceOnRigidBody(Equation):
-    def initialize(self, d_idx,
-                   d_m,
-                   d_fx,
-                   d_fy,
-                   d_fz,
-                   d_normal_force_time,
-                   d_tmp_normal_force,
-                   d_delta_fn,
-                   d_force_idx_fn,
-                   d_tangential_force_time,
-                   d_tmp_tangential_force,
-                   d_delta_ft,
-                   d_force_idx_ft,
-                   dt, t):
-        t_1 = d_normal_force_time[0]
-
-        if t <= t_1:
-            if d_idx == 1:
-                d_tmp_normal_force[0] += d_delta_fn[0]
-
-        if d_force_idx_fn[d_idx] == 1:
-            d_fy[d_idx] += d_tmp_normal_force[0]
-
-        t_2 = d_normal_force_time[0] + d_tangential_force_time[0]
-        if t > t_1 and t <= t_2:
-            if d_idx == 1:
-                d_tmp_tangential_force[0] += d_delta_ft[0]
-
-        if d_force_idx_ft[d_idx] == 1:
-            d_fx[d_idx] += d_tmp_tangential_force[0]
-
-
-class Mohseni2021FreeSlidingOnASlope(Application):
+class Qiu2017FallingSolidInWater2D(Application):
     def initialize(self):
         self.dim = 2
-        spacing = 1e-2
+        spacing = 2. * 1e-3
+        self.hdx = 1.0
 
-        self.wall_length = 100.
-        self.wall_height = 0.
-        self.wall_spacing = spacing
-        self.wall_layers = 0
-        self.wall_rho = 2000.
+        # the fluid dimensions are
+        # x-dimension (this is in the plane of the paper going right)
+        self.fluid_length = 150. * 1e-3
+        # y-dimension (this goes into the paper)
+        self.fluid_height = 131 * 1e-3
 
-        self.rigid_body_length = 0.1
-        self.rigid_body_height = 0.1
+        self.fluid_density = 1000.0
+        self.fluid_spacing = spacing
+
+        self.tank_length = 150. * 1e-3
+        self.tank_height = 140 * 1e-3
+        self.tank_spacing = spacing
+        self.tank_layers = 3
+
+        # x dimension
+        self.rigid_body_length = 20. * 1e-3
+        # y dimension
+        self.rigid_body_height = 20. * 1e-3
         self.rigid_body_spacing = spacing
-        self.rigid_body_rho = 2700
+        self.rigid_body_rho = 2120
 
-        self.angle = 30.
+        self.h = self.hdx * self.fluid_spacing
 
-        # simulation properties
-        self.hdx = 1.5
-        self.alpha = 0.1
+        # self.solid_rho = 500
+        # self.m = 1000 * self.dx * self.dx
+        self.co = 10 * np.sqrt(2 * 9.81 * self.fluid_height)
+        self.p0 = self.fluid_density * self.co**2.
+        self.c0 = self.co
+        # fixme: why is it blowing up with higher alpha
+        self.alpha = 0.5
         self.gx = 0.
         self.gy = -9.81
         self.gz = 0.
-        self.h = self.hdx * self.rigid_body_spacing
+        self.dim = 2
 
         # solver data
-        self.tf = 3.
-        self.dt = 1e-4
+        self.tf = 0.5
+        self.dt = 0.25 * self.fluid_spacing * self.hdx / (self.c0 * 1.1)
 
         # Rigid body collision related data
         self.limit = 6
         self.seval = None
 
-        # force application parameters
-        self.fn = -2. * 1e3
-        self.ft = 4. * 1e3
+    def add_user_options(self, group):
+        group.add_argument("--dx",
+                           action="store",
+                           type=float,
+                           dest="dx",
+                           default=5. * 1e-3,
+                           help="Spacing between particles")
 
-        self.normal_force_time = 0.5
-        self.tangential_force_time = 0.5
+    def consume_user_options(self):
+        spacing = self.options.dx
+        self.fluid_spacing = spacing
+        self.tank_spacing = spacing
+        self.rigid_body_spacing = spacing
 
-        timesteps_fn = self.normal_force_time / self.dt
-        self.fn_increment = self.fn / timesteps_fn
-
-        timesteps_ft = self.tangential_force_time / self.dt
-        self.ft_increment = self.ft / timesteps_ft
+        # update h
+        self.h = self.hdx * self.fluid_spacing
 
     def create_rigid_body(self):
         x = np.array([])
@@ -237,7 +189,7 @@ class Mohseni2021FreeSlidingOnASlope(Application):
         # create a row of six cylinders
         x, y, body_id = self.create_rigid_body()
 
-        m = self.rigid_body_rho * self.rigid_body_spacing**2
+        m = self.rigid_body_rho * self.rigid_body_spacing**self.dim
         h = self.h
         rad_s = self.rigid_body_spacing / 2.
         pa = get_particle_array(name='pa',
@@ -272,6 +224,26 @@ class Mohseni2021FreeSlidingOnASlope(Application):
         return is_boundary
 
     def create_particles(self):
+
+        xf, yf, xt, yt = hydrostatic_tank_2d(
+            fluid_length=self.fluid_length,
+            fluid_height=self.fluid_height,
+            tank_height=self.tank_height,
+            tank_layers=self.tank_layers,
+            fluid_spacing=self.fluid_spacing,
+            tank_spacing=self.tank_spacing)
+
+        m_fluid = self.fluid_density * self.fluid_spacing**self.dim
+
+        fluid = get_particle_array(x=xf,
+                                   y=yf,
+                                   m=m_fluid,
+                                   h=self.h,
+                                   rho=self.fluid_density,
+                                   name="fluid")
+        # set the initial pressure
+        fluid.p[:] = - self.fluid_density * self.gy * (max(fluid.y) - fluid.y[:])
+
         # =============================
         # Create a rigid body
         # =============================
@@ -279,7 +251,7 @@ class Mohseni2021FreeSlidingOnASlope(Application):
         xc, yc, body_id = self.create_rigid_body()
 
         dem_id = body_id
-        m = self.rigid_body_rho * self.rigid_body_spacing**2
+        m = self.rigid_body_rho * self.rigid_body_spacing**self.dim
         h = self.h
         rad_s = self.rigid_body_spacing / 2.
         rigid_body = get_particle_array(name='rigid_body',
@@ -298,97 +270,33 @@ class Mohseni2021FreeSlidingOnASlope(Application):
         rigid_body.add_property('body_id', type='int', data=body_id)
         rigid_body.add_constant('max_tng_contacts_limit', 10)
         rigid_body.add_constant('total_no_bodies', 2)
+        rigid_body.y[:] += max(fluid.y) - min(rigid_body.y) - self.rigid_body_height/2.
+
         # =============================
         # End creation of rigid body
         # =============================
-
-        # =============================================
-        # Add additional properties to apply force
-        # =============================================
-        setup_properties_for_gradual_force(rigid_body)
-        force_index_single(rigid_body)
-
-        rigid_body.normal_force_time[0] = self.normal_force_time
-        rigid_body.tmp_normal_force[0] = 0.
-        rigid_body.delta_fn[0] = 0.
-
-        rigid_body.tangential_force_time[0] = self.tangential_force_time
-        rigid_body.tmp_tangential_force[0] = 0.
-
-        # no of particles the tangential force to be applied
-        no_par = len(np.where(rigid_body.force_idx_fn == 1.)[0])
-        rigid_body.delta_fn[0] = self.fn_increment / no_par
-
-        # no of particles the tangential force to be applied
-        no_par = len(np.where(rigid_body.force_idx_ft == 1.)[0])
-        rigid_body.delta_ft[0] = self.ft_increment / no_par
-        # =============================================
-        # Add additional properties to apply force
-        # =============================================
-
-        # =============================================
-        # Create wall particles
-        # =============================================
-        length_fac = 1.
-        x, y = get_2d_block(dx=self.rigid_body_spacing,
-                            length=self.wall_length * length_fac,
-                            height=self.wall_layers * self.wall_spacing)
-        contact_force_is_boundary = get_contact_force_is_boundary(x, y, self.rigid_body_spacing)
-
-        # x, y, _z = rotate(x, y, np.zeros(len(x)), axis=np.array([0., 0., 1.]),
-        #                   angle=-(90. - self.angle))
-
-        dem_id = body_id
-        m = self.rigid_body_rho * self.rigid_body_spacing**2
-        h = self.h
-        rad_s = self.rigid_body_spacing / 2.
-
-        wall = get_particle_array(name='wall',
-                                  x=x,
-                                  y=y,
-                                  h=h,
-                                  m=m,
-                                  rho=self.rigid_body_rho,
-                                  rad_s=rad_s,
-                                  contact_force_is_boundary=contact_force_is_boundary,
+        tank = get_particle_array(x=xt,
+                                  y=yt,
+                                  m=m_fluid,
+                                  m_fluid=m_fluid,
+                                  h=self.h,
+                                  rho=self.fluid_density,
+                                  rad_s=self.fluid_spacing/2.,
+                                  contact_force_is_boundary=1.,
+                                  name="tank",
                                   constants={
-                                      'E': 69 * 1e9,
+                                      'E': 21 * 1e10,
                                       'poisson_ratio': 0.3,
                                   })
-        wall.add_property('dem_id', type='int', data=max(body_id) + 1)
-        # remove particles outside the circle
-        indices = []
-        for i in range(len(wall.x)):
-            if wall.x[i] < - self.rigid_body_length:
-                indices.append(i)
+        tank.add_property('dem_id', type='int', data=1)
 
-        wall.remove_particles(indices)
-        # =============================================
-        # End creation wall particles
-        # =============================================
+        # # Translate the tank and fluid so that fluid starts at 0
+        # min_xf = abs(np.min(xf))
 
-        # move rigid body to up
-        # rigid_body.y[:] += max(wall.y) - min(rigid_body.y) + self.rigid_body_spacing * 1.
-        # rigid_body.x[:] -= abs(max(rigid_body.x) - min(wall.x))
-        # rigid_body.x[:] += 2. * self.rigid_body_length
+        # fluid.x += min_xf
+        # tank.x += min_xf
 
-        xc, yc, _zs = rotate(rigid_body.x, rigid_body.y, rigid_body.z, axis=np.array([0., 0., 1.]),
-                             angle=-self.angle)
-        x, y, _z = rotate(wall.x, wall.y, wall.z, axis=np.array([0., 0., 1.]), angle=-30.)
-
-        rigid_body.x[:] = xc[:]
-        rigid_body.y[:] = yc[:]
-        radians = (90. - self.angle) * np.pi / 180.
-        rigid_body.x[:] += (self.rigid_body_length / 2. + self.rigid_body_spacing) * np.cos(radians)
-        rigid_body.y[:] += (self.rigid_body_length / 2. + self.rigid_body_spacing) * np.sin(radians)
-
-        wall.x[:] = x[:]
-        wall.y[:] = y[:]
-
-        # rigid_body.y[:] += - 0.0001
-        # rigid_body.x[:] += self.rigid_body_spacing * 0.5
-
-        self.scheme.setup_properties([rigid_body, wall])
+        self.scheme.setup_properties([fluid, tank, rigid_body])
 
         # Add the boundary particle information to the rigid body
         rigid_body.add_property('contact_force_is_boundary')
@@ -396,21 +304,33 @@ class Mohseni2021FreeSlidingOnASlope(Application):
         rigid_body.contact_force_is_boundary[:] = is_boundary[:]
         rigid_body.is_boundary[:] = is_boundary[:]
 
+        # Add the rigid fluid coupling properties to the rigid body
+        rigid_body.m_fsi[:] = self.fluid_density * self.rigid_body_spacing**self.dim
+        rigid_body.rho_fsi[:] = 1000.
+
+        # Remove the fluid particles
+        G.remove_overlap_particles(
+            fluid, rigid_body, self.rigid_body_spacing, dim=self.dim
+        )
+
         # self.scheme.scheme.set_linear_velocity(
         #     rigid_body, np.array([0.0, -0.5, 0.]))
 
-        return [rigid_body, wall]
+        return [fluid, tank, rigid_body]
 
     def create_scheme(self):
         rfc = RigidFluidCouplingScheme(rigid_bodies=['rigid_body'],
-                                       fluids=None,
-                                       boundaries=['wall'],
-                                       dim=2,
-                                       rho0=1000.,
-                                       p0=1000 * 100,
-                                       c0=10.,
+                                       fluids=['fluid'],
+                                       boundaries=['tank'],
+                                       dim=self.dim,
+                                       rho0=self.fluid_density,
+                                       p0=self.p0,
+                                       c0=self.c0,
+                                       gx=self.gx,
                                        gy=self.gy,
+                                       gz=self.gz,
                                        nu=0.,
+                                       alpha=self.alpha,
                                        h=self.h)
 
         s = SchemeChooser(default='rfc', rfc=rfc)
@@ -431,7 +351,9 @@ class Mohseni2021FreeSlidingOnASlope(Application):
     def configure_scheme(self):
         tf = self.tf
 
-        self.scheme.configure_solver(dt=self.dt, tf=tf, pfreq=100)
+        output_at_times = np.array([0., 0.2, 0.3, 0.4])
+        self.scheme.configure_solver(dt=self.dt, tf=tf, pfreq=100,
+                                     output_at_times=output_at_times)
 
     # def post_step(self, solver):
     #     t = solver.t
@@ -459,21 +381,22 @@ class Mohseni2021FreeSlidingOnASlope(Application):
 
         from pysph.solver.utils import iter_output
 
-        t, velocity = [], []
+        t, y_cm_simulated = [], []
 
         for sd, rb in iter_output(output_files[::1], 'rigid_body'):
             _t = sd['t']
             t.append(_t)
-            vel = (rb.vcm[0]**2. + rb.vcm[1]**2. + rb.vcm[2]**2.)**0.5
-            velocity.append(vel)
+            y_cm_simulated.append(rb.xcm[1])
 
-        # analytical data
-        theta = np.pi / 6.
-        t_analytical = np.linspace(0., max(t), 100)
-        v_analytical = (np.sin(theta) - self.options.fric_coeff * np.cos(theta)) * 9.81 * np.asarray(t_analytical)
+        path = os.path.abspath(__file__)
+        directory = os.path.dirname(path)
 
-        if self.options.fric_coeff > np.tan(theta):
-            v_analytical = 0. * np.asarray(t_analytical)
+        # experimental data (read from file)
+        # load the data
+        data_y_cm_vs_time_exp_qiu_2017_exp = np.loadtxt(
+            os.path.join(directory, 'qiu_2017_falling_solid_in_water_vertical_displacement_experimental.csv'),
+            delimiter=',')
+        t_experimental, y_cm_experimental = data_y_cm_vs_time_exp_qiu_2017_exp[:, 0], data_y_cm_vs_time_exp_qiu_2017_exp[:, 1]
 
         if 'info' in fname:
             res = os.path.join(os.path.dirname(fname), "results.npz")
@@ -482,20 +405,20 @@ class Mohseni2021FreeSlidingOnASlope(Application):
 
         np.savez(res,
                  t=t,
-                 velocity_rbd=velocity,
+                 y_cm_simulated=y_cm_simulated,
 
-                 t_analytical=t_analytical,
-                 v_analytical=v_analytical)
+                 t_experimental=t_experimental,
+                 y_cm_experimental=y_cm_experimental)
 
         plt.clf()
-        plt.plot(t, velocity, "-", label='Mohsen')
-        plt.plot(t_analytical, v_analytical, "--", label='Analytical')
+        plt.plot(t, y_cm_simulated, "-", label='Simulated')
+        plt.plot(t_experimental, y_cm_experimental, "--", label='Experimental')
 
-        plt.title('Velocity')
+        plt.title('vertical_disp_vs_time')
         plt.xlabel('t')
-        plt.ylabel('Velocity (m/s)')
+        plt.ylabel('Vertical displacement (m)')
         plt.legend()
-        fig = os.path.join(os.path.dirname(fname), "velocity_vs_time.png")
+        fig = os.path.join(os.path.dirname(fname), "y_cm_vs_time.png")
         plt.savefig(fig, dpi=300)
         # ========================
         # x amplitude figure
@@ -503,9 +426,9 @@ class Mohseni2021FreeSlidingOnASlope(Application):
         # generate plots
         i = 0
         output_files = get_files(fname)
-        output_times = np.array([0., 5 * 1e-1, 1. * 1e-0,  2. * 1e-0])
+        output_times = np.array([0., 0.2, 0.3, 0.4])
 
-        for sd, body, wall in iter_output(output_files, 'rigid_body', 'wall'):
+        for sd, body, fluid, tank in iter_output(output_files, 'rigid_body', 'fluid', 'tank'):
             _t = sd['t']
             # if _t in output_times:
             if _t in output_times:
@@ -517,19 +440,13 @@ class Mohseni2021FreeSlidingOnASlope(Application):
                 axs.set_aspect('equal', 'box')
                 # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
 
-                # get the maximum and minimum of the geometry
-                x_min = min(body.x) - self.rigid_body_height
-                x_max = max(body.x) + 3. * self.rigid_body_height
-                y_min = min(body.y) - 4. * self.rigid_body_height
-                y_max = max(body.y) + 1. * self.rigid_body_height
+                tank_x = tank.x
+                tank_y = tank.y
+                tank_m = tank.m
 
-                filtr_1 = ((wall.x >= x_min) & (wall.x <= x_max)) & (
-                    (wall.y >= y_min) & (wall.y <= y_max))
-                wall_x = wall.x[filtr_1]
-                wall_y = wall.y[filtr_1]
-                wall_m = wall.m[filtr_1]
+                tmp = axs.scatter(tank_x, tank_y, s=s, c=tank_m)
 
-                tmp = axs.scatter(wall_x, wall_y, s=s, c=wall_m)
+                tmp = axs.scatter(fluid.x, fluid.y, s=s, c=fluid.m)
 
                 # save the figure
                 figname = os.path.join(os.path.dirname(fname), "time" + str(i) + ".png")
@@ -542,7 +459,7 @@ class Mohseni2021FreeSlidingOnASlope(Application):
         # Schematic
         # =======================================
         files = self.output_files
-        for sd, body, wall in iter_output(files[0:2], 'rigid_body', 'wall'):
+        for sd, body, fluid, tank in iter_output(files[0:2], 'rigid_body', 'fluid', 'tank'):
             _t = sd['t']
             if _t == 0.:
                 s = 0.3
@@ -553,18 +470,14 @@ class Mohseni2021FreeSlidingOnASlope(Application):
                 axs.set_aspect('equal', 'box')
                 # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
 
-                # im_ratio = tmp.shape[0]/tmp.shape[1]
-                x_min = min(body.x) - self.rigid_body_height
-                x_max = max(body.x) + 3. * self.rigid_body_height
-                y_min = min(body.y) - 4. * self.rigid_body_height
-                y_max = max(body.y) + 1. * self.rigid_body_height
+                tank_x = tank.x
+                tank_y = tank.y
+                tank_m = tank.m
 
-                filtr_1 = ((wall.x >= x_min) & (wall.x <= x_max)) & (
-                    (wall.y >= y_min) & (wall.y <= y_max))
-                wall_x = wall.x[filtr_1]
-                wall_y = wall.y[filtr_1]
-                wall_m = wall.m[filtr_1]
-                tmp = axs.scatter(wall_x, wall_y, s=s, c=wall_m)
+                tmp = axs.scatter(tank_x, tank_y, s=s, c=tank_m)
+
+                tmp = axs.scatter(fluid.x, fluid.y, s=s, c=fluid.m)
+
                 axs.axis('off')
                 axs.set_xticks([])
                 axs.set_yticks([])
@@ -575,7 +488,7 @@ class Mohseni2021FreeSlidingOnASlope(Application):
 
 
 if __name__ == '__main__':
-    app = Mohseni2021FreeSlidingOnASlope()
+    app = Qiu2017FallingSolidInWater2D()
     app.run()
     app.post_process(app.info_filename)
 

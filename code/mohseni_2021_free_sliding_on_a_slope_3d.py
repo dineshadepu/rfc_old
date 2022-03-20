@@ -419,7 +419,7 @@ class Mohseni2021FreeSlidingOnASlope(Application):
                                        c0=10.,
                                        gy=self.gy,
                                        nu=0.,
-                                       h=None)
+                                       h=self.h)
 
         s = SchemeChooser(default='rfc', rfc=rfc)
         return s

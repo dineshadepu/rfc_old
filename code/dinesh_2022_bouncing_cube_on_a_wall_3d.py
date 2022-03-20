@@ -20,7 +20,7 @@ from pysph.examples.rigid_body.sphere_in_vessel_akinci import (create_boundary,
 from pysph.tools.geometry import get_2d_block
 
 
-class RigidFluidCoupling(Application):
+class Simulation1Dinesh2022BouncingCubeOnAWall2D(Application):
     def initialize(self):
         spacing = 0.05
         self.hdx = 1.3
@@ -165,6 +165,6 @@ class RigidFluidCoupling(Application):
 
 
 if __name__ == '__main__':
-    app = RigidFluidCoupling()
+    app = Simulation1Dinesh2022BouncingCubeOnAWall2D()
     app.run()
     # app.post_process(app.info_filename)

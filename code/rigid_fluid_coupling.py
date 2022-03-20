@@ -573,6 +573,7 @@ class RigidFluidCouplingScheme(Scheme):
             self.rigid_bodies = rigid_bodies
 
         # fluids parameters
+        self.edac = False
         self.edac_alpha = edac_alpha
         self.h = h
         self.art_nu = 0.
@@ -580,7 +581,7 @@ class RigidFluidCouplingScheme(Scheme):
 
         self.dim = dim
 
-        self.kernel = CubicSpline
+        self.kernel = QuinticSpline
 
         self.rho0 = rho0
         self.p0 = p0
@@ -595,7 +596,7 @@ class RigidFluidCouplingScheme(Scheme):
         self.fric_coeff = fric_coeff
         self.en = en
 
-        self.alpha = alpha
+        self.fluid_alpha = alpha
         self.beta = beta
 
         self.solver = None
@@ -616,14 +617,21 @@ class RigidFluidCouplingScheme(Scheme):
                            type=float,
                            help="Friction coefficient")
 
+        group.add_argument("--fluid-alpha", action="store",
+                           dest="fluid_alpha", default=0.5,
+                           type=float,
+                           help="Artificial viscosity")
+
+        add_bool_argument(group, 'edac', dest='edac', default=True,
+                          help='Use pressure evolution equation EDAC')
+
     def consume_user_options(self, options):
-        _vars = ['kr', 'kf', 'fric_coeff']
+        _vars = ['kr', 'kf', 'fric_coeff', 'fluid_alpha', 'edac']
         data = dict((var, self._smart_getattr(options, var)) for var in _vars)
         self.configure(**data)
 
     def attributes_changed(self):
-        if self.h is not None and self.c0 is not None:
-            self.art_nu = self.edac_alpha * self.h * self.c0 / 8
+        self.edac_nu = self.fluid_alpha * self.h * self.c0 / 8
 
     def get_equations(self):
         # elastic solid equations
@@ -639,7 +647,7 @@ class RigidFluidCouplingScheme(Scheme):
         from pysph.sph.wc.edac import (SolidWallPressureBC)
 
         all = self.fluids + self.boundaries + self.rigid_bodies
-        nu_edac = self._get_edac_nu()
+        edac_nu = self.edac_nu
 
         stage1 = []
 
@@ -647,17 +655,20 @@ class RigidFluidCouplingScheme(Scheme):
         for fluid in self.fluids:
             eqs.append(ContinuityEquation(dest=fluid,
                                           sources=self.fluids+self.boundaries), )
-            eqs.append(EDACEquation(dest=fluid,
-                                    sources=self.fluids+self.boundaries, nu=nu_edac), )
+            if self.edac == True:
+                eqs.append(
+                    EDACEquation(
+                        dest=fluid, sources=self.fluids+self.boundaries, nu=edac_nu), )
 
         if len(self.rigid_bodies) > 0:
             for fluid in self.fluids:
                 eqs.append(
                     ContinuityEquationFSI(dest=fluid,
                                           sources=self.rigid_bodies), )
-                eqs.append(
-                    EDACEquationFSI(dest=fluid,
-                                    sources=self.rigid_bodies, nu=nu_edac), )
+                if self.edac == True:
+                    eqs.append(
+                        EDACEquationFSI(dest=fluid,
+                                        sources=self.rigid_bodies, nu=edac_nu), )
 
         stage1.append(Group(equations=eqs, real=False))
 
@@ -666,6 +677,16 @@ class RigidFluidCouplingScheme(Scheme):
         # ==============================
         stage2 = []
         g2 = []
+
+        if len(self.fluids) > 0:
+            tmp = []
+            if self.edac == False:
+                for fluid in self.fluids:
+                    tmp.append(
+                        TaitEOS(dest=fluid, sources=None, rho0=self.rho0, c0=self.c0,
+                                gamma=self.gamma))
+
+            stage2.append(Group(equations=tmp, real=False))
 
         if len(self.fluids) > 0:
             tmp = []
@@ -692,15 +713,15 @@ class RigidFluidCouplingScheme(Scheme):
                                            gx=self.gx,
                                            gy=self.gy,
                                            gz=self.gz))
-                tmp.append(
-                    ClampWallPressureFSI(dest=solid, sources=None))
+                # tmp.append(
+                #     ClampWallPressureFSI(dest=solid, sources=None))
 
             if len(tmp) > 0:
                 stage2.append(Group(equations=tmp, real=False))
 
         if len(self.fluids) > 0:
             for name in self.fluids:
-                alpha = self.alpha
+                alpha = self.fluid_alpha
                 g2.append(
                     MomentumEquationPressureGradient(dest=name,
                                                      sources=self.fluids+self.boundaries,
@@ -712,7 +733,7 @@ class RigidFluidCouplingScheme(Scheme):
                     eq = MomentumEquationArtificialViscosity(dest=name,
                                                              sources=self.fluids,
                                                              c0=self.c0,
-                                                             alpha=self.alpha)
+                                                             alpha=self.fluid_alpha)
                     g2.insert(-1, eq)
 
                 if len(self.rigid_bodies) > 0:
@@ -782,10 +803,10 @@ class RigidFluidCouplingScheme(Scheme):
                          integrator_cls=None,
                          extra_steppers=None,
                          **kw):
-        from pysph.base.kernels import CubicSpline
+        from pysph.base.kernels import QuinticSpline
         from pysph.solver.solver import Solver
         if kernel is None:
-            kernel = CubicSpline(dim=self.dim)
+            kernel = QuinticSpline(dim=self.dim)
 
         steppers = {}
         if extra_steppers is not None:
@@ -978,6 +999,21 @@ class RigidFluidCouplingScheme(Scheme):
             # Adami boundary conditions. SetWallVelocity
             add_properties(pa, 'ug', 'vf', 'vg', 'wg', 'uf', 'wf', 'wij')
             # pa.add_property('m_fluid')
+
+            ####################################################
+            # compute the boundary particles of the rigid body #
+            ####################################################
+            add_boundary_identification_properties(pa)
+            # make sure your rho is not zero
+            equations = get_boundary_identification_etvf_equations([pa.name],
+                                                                   [pa.name])
+
+            sph_eval = SPHEvaluator(arrays=[pa],
+                                    equations=equations,
+                                    dim=self.dim,
+                                    kernel=QuinticSpline(dim=self.dim))
+
+            sph_eval.evaluate(dt=0.1)
 
         for fluid in self.fluids:
             pa = pas[fluid]

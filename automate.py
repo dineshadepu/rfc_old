@@ -441,7 +441,6 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
         self.case_info = {
             'fric_coeff_0_2': (dict(
                 scheme='rfc',
-                detail=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=0.2,
@@ -450,7 +449,6 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
 
             'fric_coeff_0_4': (dict(
                 scheme='rfc',
-                detail=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=0.4,
@@ -459,7 +457,6 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
 
             'fric_coeff_tan_30': (dict(
                 scheme='rfc',
-                detail=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=np.tan(np.pi/6),
@@ -468,7 +465,6 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
 
             'fric_coeff_0.6': (dict(
                 scheme='rfc',
-                detail=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=0.6,
@@ -545,7 +541,6 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
         self.case_info = {
             'fric_coeff_0_2': (dict(
                 scheme='rfc',
-                detail=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=0.2,
@@ -554,7 +549,6 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
 
             'fric_coeff_0_4': (dict(
                 scheme='rfc',
-                detail=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=0.4,
@@ -563,7 +557,6 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
 
             'fric_coeff_tan_30': (dict(
                 scheme='rfc',
-                detail=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=np.tan(np.pi/6),
@@ -572,7 +565,6 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
 
             'fric_coeff_0.6': (dict(
                 scheme='rfc',
-                detail=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=0.6,
@@ -636,29 +628,646 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
                     shutil.copy(os.path.join(source, file_name), target_dir)
 
 
+class Dinesh2022MultipleCubesColliding3D(Problem):
+    def get_name(self):
+        return 'dinesh_2022_multiple_cubes_colliding_3d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/dinesh_2022_multiple_cubes_colliding.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'two_cubes_just_touching_no_gravity': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                fric_coeff=0.2,
+                tf=3.,
+                ), r'$\mu=$0.2'),
+
+            'two_cubes_overlapping_blow_up': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                fric_coeff=0.2,
+                tf=3.,
+                ), r'$\mu=$0.2'),
+
+            'multiple_cubes_colliding': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                fric_coeff=0.2,
+                tf=3.,
+                ), r'$\mu=$0.2'),
+
+            'many_cubes_resting_on_a_big_rigid_cube': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                fric_coeff=0.2,
+                tf=3.,
+                ), r'$\mu=$0.2'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+
+
+class Dinesh2022HydrostaticTank2D(Problem):
+    def get_name(self):
+        return 'dinesh_2022_hydrostatic_tank_2d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/dinesh_2022_hydrostatic_tank_2d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            # 'dx_0_005': (dict(
+            #     scheme='rfc',
+            #     pfreq=300,
+            #     dx=5*1e-3,
+            #     kr=1e5,
+            #     fric_coeff=0.0,
+            #     tf=0.5,
+            #     ), 'dx=0.005 m'),
+
+            # 'dx_0_003': (dict(
+            #     scheme='rfc',
+            #     pfreq=300,
+            #     dx=3*1e-3,
+            #     kr=1e5,
+            #     fric_coeff=0.0,
+            #     tf=0.5,
+            #     ), 'dx=0.003 m'),
+
+            'dx_0_002': (dict(
+                scheme='rfc',
+                pfreq=300,
+                dx=2*1e-3,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=0.5,
+                ), 'dx=0.002 m'),
+
+            'dx_0_001': (dict(
+                scheme='rfc',
+                pfreq=300,
+                dx=1*1e-3,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=0.5,
+                ), 'dx=0.001 m'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+
+
+class Qiu2017FallingSolidInWater2D(Problem):
+    def get_name(self):
+        return 'qiu_2017_falling_solid_in_water_2d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/qiu_2017_falling_solid_in_water_2d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            # 'dx_0_005': (dict(
+            #     scheme='rfc',
+            #     pfreq=300,
+            #     dx=5*1e-3,
+            #     kr=1e5,
+            #     fric_coeff=0.0,
+            #     tf=0.5,
+            #     ), 'dx=0.005 m'),
+
+            # 'dx_0_003': (dict(
+            #     scheme='rfc',
+            #     pfreq=300,
+            #     dx=3*1e-3,
+            #     kr=1e5,
+            #     fric_coeff=0.0,
+            #     tf=0.5,
+            #     ), 'dx=0.003 m'),
+
+            'dx_0_002': (dict(
+                scheme='rfc',
+                edac=None,
+                pfreq=300,
+                dx=2*1e-3,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=0.5,
+                ), 'edac dx=0.002 m'),
+
+            'dx_0_001': (dict(
+                scheme='rfc',
+                edac=None,
+                pfreq=300,
+                dx=1*1e-3,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=0.5,
+                ), 'edac dx=0.001 m'),
+
+            'dx_0_002_no_edac': (dict(
+                scheme='rfc',
+                no_edac=None,
+                pfreq=300,
+                dx=2*1e-3,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=0.5,
+                ), 'dx=0.002 m'),
+
+            'dx_0_001_no_edac': (dict(
+                scheme='rfc',
+                no_edac=None,
+                pfreq=300,
+                dx=1*1e-3,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=0.5,
+                ), 'dx=0.001 m'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+        self.plot_velocity()
+
+    def plot_velocity(self):
+        data = {}
+        for name in self.case_info:
+            data[name] = np.load(self.input_path(name, 'results.npz'))
+
+        for name in self.case_info:
+            t_experimental = data[name]['t_experimental']
+            y_cm_experimental = data[name]['y_cm_experimental']
+
+            t = data[name]['t']
+            y_cm_simulated = data[name]['y_cm_simulated']
+
+            plt.scatter(t, y_cm_simulated, s=1, label=self.case_info[name][1])
+
+        # experimental plot should be only once plotted
+        plt.plot(t_experimental, y_cm_experimental, label=self.case_info[name][1] + ' Experimental')
+
+        plt.xlabel('time')
+        plt.ylabel('')
+        plt.legend(prop={'size': 12})
+        # plt.tight_layout(pad=0)
+        plt.savefig(self.output_path('y_cm_vs_time.pdf'))
+        plt.clf()
+        plt.close()
+
+
+class Qiu2017FallingSolidInWater3D(Problem):
+    def get_name(self):
+        return 'qiu_2017_falling_solid_in_water_3d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/qiu_2017_falling_solid_in_water_3d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'case_1': (dict(
+                scheme='rfc',
+                pfreq=300,
+                dx=5*1e-3,
+                kr=1e5,
+                fric_coeff=0.2,
+                tf=0.5,
+                ), r'$\mu=$0.2'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+
+
+class Qiu2017FloatingSolidInWater2D(Problem):
+    def get_name(self):
+        return 'qiu_2017_floating_solid_in_water_2d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/qiu_2017_floating_solid_in_water_2d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'dx_0_002_edac': (dict(
+                scheme='rfc',
+                pfreq=300,
+                edac=None,
+                dx=2*1e-3,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=1.5,
+                ), 'edac dx=0.002 m'),
+
+            'dx_0_001_edac': (dict(
+                scheme='rfc',
+                pfreq=300,
+                edac=None,
+                dx=1*1e-3,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=1.5,
+                ), 'edac dx=0.001 m'),
+
+            'dx_0_002_no_edac': (dict(
+                scheme='rfc',
+                pfreq=300,
+                no_edac=None,
+                dx=2*1e-3,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=1.5,
+                ), 'dx=0.002 m'),
+
+            'dx_0_001_no_edac': (dict(
+                scheme='rfc',
+                pfreq=300,
+                no_edac=None,
+                dx=1*1e-3,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=1.5,
+                ), 'dx=0.001 m'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+        self.plot_velocity()
+
+    def plot_velocity(self):
+        data = {}
+        for name in self.case_info:
+            data[name] = np.load(self.input_path(name, 'results.npz'))
+
+        for name in self.case_info:
+            t_experimental = data[name]['t_experimental']
+            y_cm_experimental = data[name]['y_cm_experimental']
+
+            t = data[name]['t']
+            y_cm_simulated = data[name]['y_cm_simulated']
+
+            plt.scatter(t, y_cm_simulated, s=1, label=self.case_info[name][1])
+
+        # experimental plot should be only once plotted
+        plt.plot(t_experimental, y_cm_experimental, label=self.case_info[name][1] + ' Experimental')
+
+        plt.xlabel('time')
+        plt.ylabel('')
+        plt.legend(prop={'size': 12})
+        # plt.tight_layout(pad=0)
+        plt.savefig(self.output_path('y_cm_vs_time.pdf'))
+        plt.clf()
+        plt.close()
+
+
+class Qiu2017FloatingSolidInWater3D(Problem):
+    def get_name(self):
+        return 'qiu_2017_floating_solid_in_water_3d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/qiu_2017_floating_solid_in_water_3d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'case_1': (dict(
+                scheme='rfc',
+                pfreq=300,
+                dx=5*1e-3,
+                kr=1e5,
+                fric_coeff=0.2,
+                tf=0.5,
+                ), r'$\mu=$0.2'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+
+
+class Dinesh2022SteadyCubesOnAWall2D(Problem):
+    def get_name(self):
+        return 'dinesh_2022_steady_cubes_on_a_wall_2d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/dinesh_2022_steady_cubes_on_a_wall_2d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'two_cubes': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                # This has to be fixed. Friction coefficient between different bodies
+                fric_coeff=0.2,
+                tf=1.8,
+                ), 'Two cubes'),
+
+            'three_cubes': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                # This has to be fixed. Friction coefficient between different bodies
+                fric_coeff=0.2,
+                tf=2.,
+                ), 'Three cubes'),
+
+            'six_cubes': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                # This has to be fixed. Friction coefficient between different bodies
+                fric_coeff=0.2,
+                tf=2.,
+                ), 'Six cubes'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+
+
+class Dinesh2022SteadyCubesOnAWall3D(Problem):
+    def get_name(self):
+        return 'dinesh_2022_steady_cubes_on_a_wall_3d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/dinesh_2022_steady_cubes_on_a_wall_3d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'two_cubes': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                # This has to be fixed. Friction coefficient between different bodies
+                fric_coeff=0.2,
+                tf=1.8,
+                ), 'Two cubes'),
+
+            'three_cubes': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                # This has to be fixed. Friction coefficient between different bodies
+                fric_coeff=0.2,
+                tf=2.,
+                ), 'Three cubes'),
+
+            'six_cubes': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                # This has to be fixed. Friction coefficient between different bodies
+                fric_coeff=0.2,
+                tf=2.,
+                ), 'Six cubes'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+
+
+class Amaro2019DamBreakingFlowHittingOneCube3d(Problem):
+    def get_name(self):
+        return 'amaro_2019_dam_breaking_flow_hitting_one_cube_3d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/amaro_2019_dam_breaking_flow_hitting_one_cube_3d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'case_1': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                # This has to be fixed. Friction coefficient between different bodies
+                fric_coeff=0.2,
+                tf=1.8,
+                ), r'$\mu=$0.2'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+
+
+class Amaro2019DamBreakingFlowHittingThreeCubes3d(Problem):
+    def get_name(self):
+        return 'amaro_2019_dam_breaking_flow_hitting_three_stacked_cubes_3d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/amaro_2019_dam_breaking_flow_hitting_three_stacked_cubes_3d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'case_1': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                # This has to be fixed. Friction coefficient between different bodies
+                fric_coeff=0.2,
+                tf=2.,
+                ), r'$\mu=$0.2'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+
+
+class Amaro2019DamBreakingFlowHittingSixCubes3d(Problem):
+    def get_name(self):
+        return 'amaro_2019_dam_breaking_flow_hitting_six_stacked_cubes_3d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/amaro_2019_dam_breaking_flow_hitting_six_stacked_cubes_3d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'case_1': (dict(
+                scheme='rfc',
+                pfreq=300,
+                kr=1e5,
+                # This has to be fixed. Friction coefficient between different bodies
+                fric_coeff=0.2,
+                tf=2.,
+                ), r'$\mu=$0.2'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+
 if __name__ == '__main__':
     import matplotlib
     matplotlib.use('pdf')
 
     PROBLEMS = [
-        # first problem
-        Mohseni2021FreeSlidingOnASlope2D,
-        Mohseni2021FreeSlidingOnASlope3D,
+        # ========================
+        # Only rigid body problems
+        # ========================
+        # Current paper problem
+        # Dinesh2022BouncingCube3D, # tests the coefficient of restitution
 
-        StackOfCylinders,
-        WedgeEntry2D,
-        DamBreakFlowAgainstSingleCube,
-        DamBreakFlowAgainstThreeCubes
+        # # Current paper problem
+        # Mohseni2021FreeSlidingOnASlope2D,
+        # Mohseni2021FreeSlidingOnASlope3D,
+
+        # # Current paper problem
+        # Mohseni2021ControlledSlidingOnAFlatSurface2D,
+        # Mohseni2021ControlledSlidingOnAFlatSurface3D,
+
+        # # Current paper problem
+        # StackOfCylinders2D, # Experimental validation
+
+        # fixme: add figure and validate, you can try 2d case for
+        # simplicity
+        # Current paper problem
+        Qiu2017FallingSolidInWater2D,
+        Qiu2017FallingSolidInWater3D,
+
+        # # Current paper problem
+        Qiu2017FloatingSolidInWater2D,
+        # Qiu2017FloatingSolidInWater3D,
+
+        # # Current paper problem
+        # Amaro2019DamBreakingFlowHittingOneCube3d,
+
+        # # Current paper problem
+        # Amaro2019DamBreakingFlowHittingSixStackedCubes3d,
+
+        # # Current paper problem
+        # Amaro2019DamBreakingFlowHittingThreeStackedCubes3d,
+
+        # # These are test problems for body transport under dam break 3d
+        # Dinesh2022HydrostaticTank2D,
+        # Dinesh2022MultipleCubesColliding3D,
+        # Dinesh2022SteadyCubesOnAWall2D,
+        # Dinesh2022SteadyCubesOnAWall3D
     ]
 
     automator = Automator(simulation_dir='outputs',
                           output_dir=os.path.join('manuscript', 'figures'),
                           all_problems=PROBLEMS)
-
-    # task = FileCommandTask(
-    #   'latexmk manuscript/paper.tex -pdf -outdir=manuscript',
-    #   ['manuscript/paper.pdf']
-    # )
-    # automator.add_task(task, name='pdf', post_proc=True)
 
     automator.run()

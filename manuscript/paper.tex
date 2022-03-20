@@ -106,6 +106,82 @@ required in stack of cylinders example.
 \subsection{3D Bouncing cube on a wall under gravity}
 \label{sec:bouncing-cube}
 
+In the current section we test the frictional part of the current solver by
+modeling the sliding of a rigid body on an inclined surface in 3D. We compare
+against the analytical solution to validate the test case.
+
+We consider a rigid body of length 0.1 m, height 0.1 and depth of 0.1m allowed
+to slide on an inclined surface at an angle $\frac{\pi}{3}$. A density of 2000
+kg\,m\textsuperscript{-3} is used for the body. Other numerical parameters,
+such as the repulsive spring stiffness $k_r=3.0 \times 10^{5}$ and tangential
+spring stiffness $k_t=3.0 \times 10^{5}$ is chosen, respectively. A particle
+spacing of $0.001$ is considered, resulting in $4400$ particles per body. From
+the analytical solution, the evolution of velocity is given by,
+\begin{equation}
+  \label{eq:ce}
+  \ten{v}(t) = (\mu \teng{g} \sin (\theta) - \teng{g} \cos (\theta)) t.
+\end{equation}
+
+
+We consider three different friction coefficients, $\mu=0.5$, $\mu=0.5$, and
+$\mu=0.5$. From the analytical solution, when the friction coefficient is
+greater than $\tan(frac{\pi}{3})$, the body doesn't slide.
+
+\Cref{fig:dinesh-2022-bouncing-cube-snapshots-3d} depicts the snapshots of the
+rigid body bouncing on a wall. The coefficient of restitution corresponding to
+the snapshots are equal to $1$. As the rigid body approaches the wall, its
+velocity is increases due to gravity. As soon as the body comes into contact
+of the wall, the collision happens, the body's velocity is reduced until it
+becomes zero, and then it rebounds, and bounces back to a certain height.
+
+
+
+\begin{figure}[!htpb]
+  \centering
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/mohseni_2021_free_sliding_on_a_slope_3d/fric_coeff_0_4/time0}
+    \subcaption{t = 2.5e-03 sec}\label{fig:passing-0}
+  \end{subfigure}
+  %
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/mohseni_2021_free_sliding_on_a_slope_3d/fric_coeff_0_4/time1}
+    \subcaption{t = 2.5e-03 sec}\label{fig:passing-1}
+  \end{subfigure}
+
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/mohseni_2021_free_sliding_on_a_slope_3d/fric_coeff_0_4/time2}
+    \subcaption{t = 2.5e-03 sec}\label{fig:passing-2}
+  \end{subfigure}
+  %
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/mohseni_2021_free_sliding_on_a_slope_3d/fric_coeff_0_4/time3}
+    \subcaption{t = 2.5e-03 sec}\label{fig:passing-3}
+  \end{subfigure}
+  \caption{Elastic solid sliding}
+\label{fig:mohseni-2021-sliding-3d}
+\end{figure}
+%
+
+\Cref{fig:results-solid-sliding-velocity-vs-time} shows a evolution of
+velocity of the center of mass of the rigid body for different frictional
+coefficients against the analytical solution. From
+\Cref{fig:results-solid-sliding-velocity-vs-time} we can see that the current
+solver has an excellent match with the analytical solution and covers all the
+regimes of the sliding case.
+
+
+\begin{figure}[!htpb]
+  \centering
+  \includegraphics[width=0.4\textwidth]{figures/mohseni_2021_free_sliding_on_a_slope_3d/velocity_vs_time}
+  \caption{Velocity versus time}
+\label{fig:results-solid-sliding-velocity-vs-time}
+\end{figure}
+
+
 \subsubsection{A test to check the conservation properties of rigid body}
 \label{sec:conservation-of-rb-properties}
 
@@ -113,6 +189,80 @@ required in stack of cylinders example.
 
 \subsection{A 2d and 3d rigid body sliding}
 \label{sec:rigid-body-sliding}
+
+In the current section we test the frictional part of the current solver by
+modeling the sliding of a rigid body on an inclined surface in 3D. We compare
+against the analytical solution to validate the test case.
+
+We consider a rigid body of length 0.1 m, height 0.1 and depth of 0.1m allowed
+to slide on an inclined surface at an angle $\frac{\pi}{3}$. A density of 2000
+kg\,m\textsuperscript{-3} is used for the body. Other numerical parameters,
+such as the repulsive spring stiffness $k_r=3.0 \times 10^{5}$ and tangential
+spring stiffness $k_t=3.0 \times 10^{5}$ is chosen, respectively. A particle
+spacing of $0.001$ is considered, resulting in $4400$ particles per body. From
+the analytical solution, the evolution of velocity is given by,
+\begin{equation}
+  \label{eq:ce}
+  \ten{v}(t) = (\mu \teng{g} \sin (\theta) - \teng{g} \cos (\theta)) t.
+\end{equation}
+
+
+We consider three different friction coefficients, $\mu=0.5$, $\mu=0.5$, and
+$\mu=0.5$. From the analytical solution, when the friction coefficient is
+greater than $\tan(frac{\pi}{3})$, the body doesn't slide.
+
+\Cref{fig:mohseni-2021-sliding-3d} shows the snapshots of the rigid body at 4
+time instants. From \cref{fig:mohseni-2021-sliding-3d} we can see that the the
+body is freely sliding with out having any oscillations or unphysical jumping
+off the inclined wall. This is because of the new surface aware contact model
+as force is not computed by considering the wall as spherical particles but by
+ensemble of an overlap. The snapshots correspond to a friction coefficient of $0.4$.
+
+
+\begin{figure}[!htpb]
+  \centering
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/mohseni_2021_free_sliding_on_a_slope_3d/fric_coeff_0_4/time0}
+    \subcaption{t = 2.5e-03 sec}\label{fig:passing-0}
+  \end{subfigure}
+  %
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/mohseni_2021_free_sliding_on_a_slope_3d/fric_coeff_0_4/time1}
+    \subcaption{t = 2.5e-03 sec}\label{fig:passing-1}
+  \end{subfigure}
+
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/mohseni_2021_free_sliding_on_a_slope_3d/fric_coeff_0_4/time2}
+    \subcaption{t = 2.5e-03 sec}\label{fig:passing-2}
+  \end{subfigure}
+  %
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/mohseni_2021_free_sliding_on_a_slope_3d/fric_coeff_0_4/time3}
+    \subcaption{t = 2.5e-03 sec}\label{fig:passing-3}
+  \end{subfigure}
+  \caption{Elastic solid sliding}
+\label{fig:mohseni-2021-sliding-3d}
+\end{figure}
+%
+
+\Cref{fig:results-solid-sliding-velocity-vs-time} shows a evolution of
+velocity of the center of mass of the rigid body for different frictional
+coefficients against the analytical solution. From
+\Cref{fig:results-solid-sliding-velocity-vs-time} we can see that the current
+solver has an excellent match with the analytical solution and covers all the
+regimes of the sliding case.
+
+
+\begin{figure}[!htpb]
+  \centering
+  \includegraphics[width=0.4\textwidth]{figures/mohseni_2021_free_sliding_on_a_slope_3d/velocity_vs_time}
+  \caption{Velocity versus time}
+\label{fig:results-solid-sliding-velocity-vs-time}
+\end{figure}
 
 
 \subsection{Controlled Sliding on a Flat Surface}
@@ -125,9 +275,12 @@ required in stack of cylinders example.
 
 
 
-\subsection{Rigid block of different densities allowed to sink into water}
-\label{sec:rigid-block-diff}
+\subsection{Falling solid in water}
+\label{sec:falling-solid-in-water}
 
+
+\subsection{Floating solid in water}
+\label{sec:floating-solid-in-water}
 
 
 \subsection{3D dam breaking flow hitting one cube}
