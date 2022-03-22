@@ -1089,23 +1089,56 @@ class Dinesh2022SteadyCubesOnAWall3D(Problem):
                 tf=1.8,
                 ), 'Two cubes'),
 
-            'three_cubes': (dict(
-                scheme='rfc',
-                pfreq=300,
-                kr=1e5,
-                # This has to be fixed. Friction coefficient between different bodies
-                fric_coeff=0.2,
-                tf=2.,
-                ), 'Three cubes'),
+            # 'three_cubes': (dict(
+            #     scheme='rfc',
+            #     pfreq=300,
+            #     kr=1e5,
+            #     # This has to be fixed. Friction coefficient between different bodies
+            #     fric_coeff=0.2,
+            #     tf=2.,
+            #     ), 'Three cubes'),
 
-            'six_cubes': (dict(
+            # 'six_cubes': (dict(
+            #     scheme='rfc',
+            #     pfreq=300,
+            #     kr=1e5,
+            #     # This has to be fixed. Friction coefficient between different bodies
+            #     fric_coeff=0.2,
+            #     tf=2.,
+            #     ), 'Six cubes'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+
+
+class Dinesh2022DamBreak3d(Problem):
+    def get_name(self):
+        return 'dinesh_2022_dam_break_3d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/dinesh_2022_3d_dam_break.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'dx_0_002': (dict(
                 scheme='rfc',
                 pfreq=300,
                 kr=1e5,
-                # This has to be fixed. Friction coefficient between different bodies
-                fric_coeff=0.2,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
                 tf=2.,
-                ), 'Six cubes'),
+                ), 'dx=0.002 m'),
         }
 
         self.cases = [
@@ -1137,8 +1170,8 @@ class Amaro2019DamBreakingFlowHittingOneCube3d(Problem):
                 kr=1e5,
                 # This has to be fixed. Friction coefficient between different bodies
                 fric_coeff=0.2,
-                tf=1.8,
-                ), r'$\mu=$0.2'),
+                tf=3.,
+                ), 'case 1'),
         }
 
         self.cases = [
@@ -1153,7 +1186,7 @@ class Amaro2019DamBreakingFlowHittingOneCube3d(Problem):
         self.make_output_dir()
 
 
-class Amaro2019DamBreakingFlowHittingThreeCubes3d(Problem):
+class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Problem):
     def get_name(self):
         return 'amaro_2019_dam_breaking_flow_hitting_three_stacked_cubes_3d'
 
@@ -1170,8 +1203,8 @@ class Amaro2019DamBreakingFlowHittingThreeCubes3d(Problem):
                 kr=1e5,
                 # This has to be fixed. Friction coefficient between different bodies
                 fric_coeff=0.2,
-                tf=2.,
-                ), r'$\mu=$0.2'),
+                tf=3.5,
+                ), 'case 1'),
         }
 
         self.cases = [
@@ -1186,7 +1219,7 @@ class Amaro2019DamBreakingFlowHittingThreeCubes3d(Problem):
         self.make_output_dir()
 
 
-class Amaro2019DamBreakingFlowHittingSixCubes3d(Problem):
+class Amaro2019DamBreakingFlowHittingSixStackedCubes3d(Problem):
     def get_name(self):
         return 'amaro_2019_dam_breaking_flow_hitting_six_stacked_cubes_3d'
 
@@ -1204,7 +1237,7 @@ class Amaro2019DamBreakingFlowHittingSixCubes3d(Problem):
                 # This has to be fixed. Friction coefficient between different bodies
                 fric_coeff=0.2,
                 tf=2.,
-                ), r'$\mu=$0.2'),
+                ), 'case 1'),
         }
 
         self.cases = [
@@ -1217,6 +1250,7 @@ class Amaro2019DamBreakingFlowHittingSixCubes3d(Problem):
 
     def run(self):
         self.make_output_dir()
+
 
 if __name__ == '__main__':
     import matplotlib
@@ -1250,20 +1284,21 @@ if __name__ == '__main__':
         Qiu2017FloatingSolidInWater2D,
         # Qiu2017FloatingSolidInWater3D,
 
-        # # Current paper problem
-        # Amaro2019DamBreakingFlowHittingOneCube3d,
+        # Current paper problem
+        Amaro2019DamBreakingFlowHittingOneCube3d,
 
-        # # Current paper problem
-        # Amaro2019DamBreakingFlowHittingSixStackedCubes3d,
+        # Current paper problem
+        Amaro2019DamBreakingFlowHittingSixStackedCubes3d,
 
-        # # Current paper problem
-        # Amaro2019DamBreakingFlowHittingThreeStackedCubes3d,
+        # Current paper problem
+        Amaro2019DamBreakingFlowHittingThreeStackedCubes3d,
 
-        # # These are test problems for body transport under dam break 3d
+        # These are test problems for body transport under dam break 3d
+        Dinesh2022DamBreak3d,
         # Dinesh2022HydrostaticTank2D,
         # Dinesh2022MultipleCubesColliding3D,
         # Dinesh2022SteadyCubesOnAWall2D,
-        # Dinesh2022SteadyCubesOnAWall3D
+        Dinesh2022SteadyCubesOnAWall3D
     ]
 
     automator = Automator(simulation_dir='outputs',

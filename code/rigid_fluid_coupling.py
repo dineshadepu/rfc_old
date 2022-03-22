@@ -686,7 +686,7 @@ class RigidFluidCouplingScheme(Scheme):
                         TaitEOS(dest=fluid, sources=None, rho0=self.rho0, c0=self.c0,
                                 gamma=self.gamma))
 
-            stage2.append(Group(equations=tmp, real=False))
+                stage2.append(Group(equations=tmp, real=False))
 
         if len(self.fluids) > 0:
             tmp = []

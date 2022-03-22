@@ -178,6 +178,22 @@ class RigidFluidCoupling(Application):
 
         self.scheme.configure_solver(dt=dt, tf=tf, pfreq=100)
 
+    def post_step(self, solver):
+        dt = solver.dt
+        for pa in self.particles:
+            if pa.name == 'wall':
+                pa.z += 0.11 * dt
+
+    def customize_output(self):
+        self._mayavi_config('''
+        for name in ['fluid']:
+            b = particle_arrays[name]
+            b.plot.module_manager.scalar_lut_manager.lut_mode = 'seismic'
+        for name in ['tank', 'wall']:
+            b = particle_arrays[name]
+            b.point_size = 0.1
+        ''')
+
 
 if __name__ == '__main__':
     app = RigidFluidCoupling()

@@ -23,7 +23,7 @@ from pysph.tools.geometry import get_3d_block
 class Dinesh2022SteadyCubesOnAWall3D(Application):
     def initialize(self):
         spacing = 0.05
-        self.hdx = 1.3
+        self.hdx = 1.0
 
         self.fluid_length = 1.0
         self.fluid_height = 1.0
@@ -40,7 +40,7 @@ class Dinesh2022SteadyCubesOnAWall3D(Application):
         self.body_length = 0.2
         self.body_depth = 0.2
         self.body_density = 2000
-        self.body_spacing = spacing / 2.
+        self.body_spacing = spacing
         self.body_h = self.hdx * self.body_spacing
 
         self.h = self.hdx * self.fluid_spacing
@@ -58,6 +58,9 @@ class Dinesh2022SteadyCubesOnAWall3D(Application):
 
     def add_user_options(self, group):
         from pysph.sph.scheme import add_bool_argument
+        add_bool_argument(group, 'one-cube', dest='use_one_cube',
+                          default=False, help='Use one cube')
+
         add_bool_argument(group, 'two-cubes', dest='use_two_cubes',
                           default=False, help='Use two cubes')
 
@@ -68,9 +71,27 @@ class Dinesh2022SteadyCubesOnAWall3D(Application):
                           default=False, help='Use pyramid cubes')
 
     def consume_user_options(self):
+        self.use_one_cube = self.options.use_one_cube
         self.use_two_cubes = self.options.use_two_cubes
         self.use_three_cubes = self.options.use_three_cubes
         self.use_pyramid_cubes = self.options.use_pyramid_cubes
+
+    def create_one_cube(self):
+        xb1, yb1, zb1 = get_3d_block(dx=self.body_spacing,
+                                     length=self.body_length,
+                                     height=self.body_height,
+                                     depth=self.body_depth)
+
+        xb = np.concatenate([xb1])
+        yb = np.concatenate([yb1])
+        zb = np.concatenate([zb1])
+
+        body_id1 = np.zeros(len(xb1), dtype=int)
+        body_id = np.concatenate([body_id1])
+
+        dem_id = np.concatenate([body_id1])
+
+        return xb, yb, zb, body_id, dem_id
 
     def create_two_cubes(self):
         xb1, yb1, zb1 = get_3d_block(dx=self.body_spacing,
@@ -99,21 +120,21 @@ class Dinesh2022SteadyCubesOnAWall3D(Application):
 
     def create_three_cubes(self):
         xb1, yb1, zb1 = get_3d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height,
-                                depth=self.body_depth)
+                                     length=self.body_length,
+                                     height=self.body_height,
+                                     depth=self.body_depth)
 
 
         xb2, yb2, zb2 = get_3d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height,
-                                depth=self.body_depth)
+                                     length=self.body_length,
+                                     height=self.body_height,
+                                     depth=self.body_depth)
 
 
         xb3, yb3, zb3 = get_3d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height,
-                                depth=self.body_depth)
+                                     length=self.body_length,
+                                     height=self.body_height,
+                                     depth=self.body_depth)
 
 
         yb2 += max(yb1) - min(yb2) + self.body_spacing * 1.
@@ -134,40 +155,34 @@ class Dinesh2022SteadyCubesOnAWall3D(Application):
 
     def create_pyramid_cubes(self):
         xb1, yb1, zb1 = get_3d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height,
-                                depth=self.body_depth)
-
+                                     length=self.body_length,
+                                     height=self.body_height,
+                                     depth=self.body_depth)
 
         xb2, yb2, zb2 = get_3d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height,
-                                depth=self.body_depth)
-
+                                     length=self.body_length,
+                                     height=self.body_height,
+                                     depth=self.body_depth)
 
         xb3, yb3, zb3 = get_3d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height,
-                                depth=self.body_depth)
-
+                                     length=self.body_length,
+                                     height=self.body_height,
+                                     depth=self.body_depth)
 
         xb4, yb4, zb4 = get_3d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height,
-                                depth=self.body_depth)
-
+                                     length=self.body_length,
+                                     height=self.body_height,
+                                     depth=self.body_depth)
 
         xb5, yb5, zb5 = get_3d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height,
-                                depth=self.body_depth)
-
+                                     length=self.body_length,
+                                     height=self.body_height,
+                                     depth=self.body_depth)
 
         xb6, yb6, zb6 = get_3d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height,
-                                depth=self.body_depth)
-
+                                     length=self.body_length,
+                                     height=self.body_height,
+                                     depth=self.body_depth)
 
         xb1 -= self.body_length
         xb2 += max(xb1) - min(xb2) + self.body_length/3.
@@ -209,10 +224,9 @@ class Dinesh2022SteadyCubesOnAWall3D(Application):
         from pysph.base.kernels import (QuinticSpline)
         # create a row of six cylinders
         x, y, z = get_3d_block(dx=self.body_spacing,
-                            length=self.body_length,
-                            height=self.body_height,
-                            depth=self.body_depth)
-
+                               length=self.body_length,
+                               height=self.body_height,
+                               depth=self.body_depth)
 
         m = self.body_density * self.body_spacing**self.dim
         h = self.hdx * self.body_spacing
@@ -254,9 +268,11 @@ class Dinesh2022SteadyCubesOnAWall3D(Application):
             self.tank_length, self.tank_height, self.tank_layers,
             self.body_spacing, self.body_spacing)
 
-        m_fluid = self.fluid_density * self.fluid_spacing**2.
+        m_fluid = self.fluid_density * self.fluid_spacing**self.dim
 
-        if self.use_two_cubes is True:
+        if self.use_one_cube is True:
+            xb, yb, zb, body_id, dem_id = self.create_one_cube()
+        elif self.use_two_cubes is True:
             xb, yb, zb, body_id, dem_id = self.create_two_cubes()
         elif self.use_three_cubes is True:
             xb, yb, zb, body_id, dem_id = self.create_three_cubes()
@@ -266,7 +282,7 @@ class Dinesh2022SteadyCubesOnAWall3D(Application):
             print("=====================================")
             print("Choose among the given configurations")
             print("=====================================")
-            print("=                                   =")
+            print("=      One cube                     =")
             print("=      Two cubes                    =")
             print("=                                   =")
             print("=      Three cubes                  =")
@@ -283,7 +299,7 @@ class Dinesh2022SteadyCubesOnAWall3D(Application):
                                   x=xb,
                                   y=yb,
                                   z=zb,
-                                  h=self.body_h,
+                                  h=self.h,
                                   m=m,
                                   rho=self.body_density,
                                   m_fluid=m_fluid,

@@ -799,11 +799,11 @@ class ComputeContactForceDistanceAndClosestPoint(Equation):
 
                 tmp = d_m[d_idx] / (d_rho[d_idx]) * WIJ
                 tmp_1 = (d_contact_force_normal_x[t2] * XIJ[0] +
-                         d_contact_force_normal_y[t2] * XIJ[1])
+                         d_contact_force_normal_y[t2] * XIJ[1] +
+                         d_contact_force_normal_y[t2] * XIJ[2])
                 d_contact_force_dist_tmp[t2] += tmp_1 * tmp
 
                 d_contact_force_normal_wij[t2] += tmp
-
 
                 if RIJ < d_closest_point_dist_to_source[t2]:
                     d_closest_point_dist_to_source[t2] = RIJ

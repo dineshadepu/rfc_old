@@ -203,7 +203,7 @@ class DamBreak3D(Application):
                                        c0=self.c0,
                                        gz=self.gz,
                                        nu=0.,
-                                       h=None)
+                                       h=self.h)
         s = SchemeChooser(default='rfc', rfc=rfc)
         return s
 
