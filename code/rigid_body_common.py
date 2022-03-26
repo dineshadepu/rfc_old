@@ -772,6 +772,7 @@ class ComputeContactForceDistanceAndClosestPoint(Equation):
              s_idx, s_x, s_y, s_z, s_u, s_v, s_w,
              d_contact_force_normal_x,
              d_contact_force_normal_y,
+             d_contact_force_normal_z,
              d_contact_force_normal_wij,
              d_contact_force_dist_tmp,
              d_contact_force_dist,
@@ -800,7 +801,7 @@ class ComputeContactForceDistanceAndClosestPoint(Equation):
                 tmp = d_m[d_idx] / (d_rho[d_idx]) * WIJ
                 tmp_1 = (d_contact_force_normal_x[t2] * XIJ[0] +
                          d_contact_force_normal_y[t2] * XIJ[1] +
-                         d_contact_force_normal_y[t2] * XIJ[2])
+                         d_contact_force_normal_z[t2] * XIJ[2])
                 d_contact_force_dist_tmp[t2] += tmp_1 * tmp
 
                 d_contact_force_normal_wij[t2] += tmp
@@ -972,7 +973,7 @@ class ComputeContactForce(Equation):
 
                     delta_lt_dot_ti = (delta_lt_x_star * ti_x +
                                        delta_lt_y_star * ti_y +
-                                       delta_lt_z_star * ti_y)
+                                       delta_lt_z_star * ti_z)
 
                     d_delta_lt_x[t2] = delta_lt_dot_ti * ti_x
                     d_delta_lt_y[t2] = delta_lt_dot_ti * ti_y

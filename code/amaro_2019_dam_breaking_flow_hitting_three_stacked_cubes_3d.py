@@ -22,7 +22,7 @@ from pysph.tools.geometry import get_3d_block
 
 class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
     def initialize(self):
-        spacing = 0.05
+        spacing = 0.03
         self.hdx = 1.0
 
         self.fluid_length = 4.5

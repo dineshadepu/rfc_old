@@ -20,7 +20,7 @@ from pysph.examples.rigid_body.sphere_in_vessel_akinci import (create_boundary,
 from pysph.tools.geometry import get_3d_block
 
 
-class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
+class Amaro2019DamBreakingFlowHittingSixStackedCubes3d(Application):
     def initialize(self):
         spacing = 0.03
         self.hdx = 1.0
@@ -224,6 +224,8 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
                                   self.fluid_depth, self.tank_height)
         xw += np.max(xf) - np.min(xw) + self.fluid_spacing
         zw += np.min(zt) - np.min(zw) + self.tank_layers * self.fluid_spacing
+        yw += np.min(yf) - np.min(yw)
+
         wall = get_particle_array(x=xw,
                                   y=yw,
                                   z=zw,
@@ -266,7 +268,7 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
         body.z[:] += max(fluid.z) - max(body.z)
         body.z[:] -= 0.075
 
-        self.scheme.setup_properties([body, tank, fluid])
+        self.scheme.setup_properties([body, tank, fluid, wall])
 
         # reset the boundary particles, this is due to improper boundary
         # particle identification by the setup properties
@@ -278,6 +280,9 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
 
         tank.add_property('contact_force_is_boundary')
         tank.contact_force_is_boundary[:] = tank.is_boundary[:]
+
+        wall.add_property('contact_force_is_boundary')
+        wall.contact_force_is_boundary[:] = 1.
 
         # set the rigid-fluid coupling properties for rigid body
         body.rho_fsi[:] = 1000.
@@ -327,6 +332,6 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
 
 
 if __name__ == '__main__':
-    app = Amaro2019DamBreakingFlowHittingThreeStackedCubes3d()
+    app = Amaro2019DamBreakingFlowHittingSixStackedCubes3d()
     app.run()
     # app.post_process(app.info_filename)

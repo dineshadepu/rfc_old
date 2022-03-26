@@ -1233,7 +1233,7 @@ class Amaro2019DamBreakingFlowHittingSixStackedCubes3d(Problem):
             'case_1': (dict(
                 scheme='rfc',
                 pfreq=300,
-                kr=1e5,
+                kr=1e7,
                 # This has to be fixed. Friction coefficient between different bodies
                 fric_coeff=0.2,
                 tf=2.,
@@ -1288,17 +1288,17 @@ if __name__ == '__main__':
         Amaro2019DamBreakingFlowHittingOneCube3d,
 
         # Current paper problem
-        Amaro2019DamBreakingFlowHittingSixStackedCubes3d,
-
-        # Current paper problem
         Amaro2019DamBreakingFlowHittingThreeStackedCubes3d,
 
+        # Current paper problem
+        Amaro2019DamBreakingFlowHittingSixStackedCubes3d,
+
         # These are test problems for body transport under dam break 3d
-        Dinesh2022DamBreak3d,
+        # Dinesh2022DamBreak3d,
         # Dinesh2022HydrostaticTank2D,
         # Dinesh2022MultipleCubesColliding3D,
         # Dinesh2022SteadyCubesOnAWall2D,
-        Dinesh2022SteadyCubesOnAWall3D
+        # Dinesh2022SteadyCubesOnAWall3D
     ]
 
     automator = Automator(simulation_dir='outputs',
