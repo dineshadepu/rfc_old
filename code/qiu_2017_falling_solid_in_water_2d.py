@@ -14,6 +14,7 @@ from pysph.base.utils import (get_particle_array)
 
 # from rigid_body_3d import RigidBody3DScheme
 from rigid_fluid_coupling import RigidFluidCouplingScheme
+from rigid_fluid_coupling import get_files_at_given_times_from_log
 from pysph.sph.equation import Equation, Group
 import os
 from pysph.tools import geometry as G
@@ -423,68 +424,82 @@ class Qiu2017FallingSolidInWater2D(Application):
         # ========================
         # x amplitude figure
         # ========================
+
+        # ========================
         # generate plots
-        i = 0
-        output_files = get_files(fname)
+        # ========================
+        info = self.read_info(fname)
+        output_files = self.output_files
         output_times = np.array([0., 0.2, 0.3, 0.4])
+        logfile = os.path.join(
+            os.path.dirname(fname),
+            'qiu_2017_falling_solid_in_water_2d.log')
+        to_plot = get_files_at_given_times_from_log(output_files, output_times,
+                                                    logfile)
 
-        for sd, body, fluid, tank in iter_output(output_files, 'rigid_body', 'fluid', 'tank'):
-            _t = sd['t']
-            # if _t in output_times:
-            if _t in output_times:
-                s = 0.2
-                # print(_t)
-                fig, axs = plt.subplots(1, 1)
-                axs.scatter(body.x, body.y, s=s, c=body.m)
-                # axs.grid()
-                axs.set_aspect('equal', 'box')
-                # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
+        for i, f in enumerate(to_plot):
+            # print(i, f)
+            data = load(f)
+            t = data['solver_data']['t']
+            tank = data['arrays']['tank']
+            fluid = data['arrays']['fluid']
+            rigid_body = data['arrays']['rigid_body']
 
-                tank_x = tank.x
-                tank_y = tank.y
-                tank_m = tank.m
+            s = 0.2
+            # print(_t)
+            fig, axs = plt.subplots(1, 1)
+            axs.scatter(fluid.x, fluid.y, s=s, c=fluid.p)
+            axs.scatter(tank.x, tank.y, s=s, c=tank.m)
+            # axs.grid()
+            axs.set_aspect('equal', 'box')
+            # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
 
-                tmp = axs.scatter(tank_x, tank_y, s=s, c=tank_m)
+            tmp = axs.scatter(rigid_body.x, rigid_body.y, s=s, c=rigid_body.m)
 
-                tmp = axs.scatter(fluid.x, fluid.y, s=s, c=fluid.m)
+            # save the figure
+            figname = os.path.join(os.path.dirname(fname), "time" + str(i) + ".png")
+            fig.savefig(figname, dpi=300)
+        # ========================
+        # generate plots ends
+        # ========================
 
-                # save the figure
-                figname = os.path.join(os.path.dirname(fname), "time" + str(i) + ".png")
-                fig.savefig(figname, dpi=300)
-                # plt.show()
-                i = i + 1
-
-        # =======================================
-        # =======================================
+        # ========================
         # Schematic
-        # =======================================
-        files = self.output_files
-        for sd, body, fluid, tank in iter_output(files[0:2], 'rigid_body', 'fluid', 'tank'):
-            _t = sd['t']
-            if _t == 0.:
-                s = 0.3
-                # print(_t)
-                fig, axs = plt.subplots(1, 1)
-                axs.scatter(body.x, body.y, s=s, c=body.m)
-                # axs.grid()
-                axs.set_aspect('equal', 'box')
-                # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
+        # ========================
+        info = self.read_info(fname)
+        output_files = self.output_files
+        output_times = np.array([0.])
+        logfile = os.path.join(
+            os.path.dirname(fname),
+            'qiu_2017_falling_solid_in_water_2d.log')
+        to_plot = get_files_at_given_times_from_log(output_files, output_times,
+                                                    logfile)
 
-                tank_x = tank.x
-                tank_y = tank.y
-                tank_m = tank.m
+        for i, f in enumerate(to_plot):
+            # print(i, f)
+            data = load(f)
+            t = data['solver_data']['t']
+            tank = data['arrays']['tank']
+            fluid = data['arrays']['fluid']
+            rigid_body = data['arrays']['rigid_body']
 
-                tmp = axs.scatter(tank_x, tank_y, s=s, c=tank_m)
+            s = 0.2
+            # print(_t)
+            fig, axs = plt.subplots(1, 1)
+            axs.scatter(fluid.x, fluid.y, s=s, c=fluid.p)
+            axs.scatter(tank.x, tank.y, s=s, c=tank.m)
+            # axs.grid()
+            axs.set_aspect('equal', 'box')
+            # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
 
-                tmp = axs.scatter(fluid.x, fluid.y, s=s, c=fluid.m)
+            tmp = axs.scatter(rigid_body.x, rigid_body.y, s=s, c=rigid_body.m)
 
-                axs.axis('off')
-                axs.set_xticks([])
-                axs.set_yticks([])
-
-                # save the figure
-                figname = os.path.join(os.path.dirname(fname), "pre_schematic.png")
-                fig.savefig(figname, dpi=300)
+            # save the figure
+            figname = os.path.join(os.path.dirname(fname), "schematic" + ".png")
+            fig.savefig(figname, dpi=300)
+        # ========================
+        # Schematic ends
+        # ========================
 
 
 if __name__ == '__main__':

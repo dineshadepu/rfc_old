@@ -16,8 +16,8 @@ from pysph.sph.scheme import SchemeChooser
 
 from pysph.base.utils import (get_particle_array)
 
-# from rigid_body_3d import RigidBody3DScheme
-from rigid_fluid_coupling import RigidFluidCouplingScheme
+from rigid_body_3d import RigidBody3DScheme
+from rigid_fluid_coupling import get_files_at_given_times_from_log
 from pysph.sph.equation import Equation, Group
 import os
 
@@ -173,7 +173,7 @@ class Mohseni2021FreeSlidingOnASlope(Application):
         spacing = 1e-2
 
         # x dimension
-        self.wall_length = 100.
+        self.wall_length = 10.
         # z dimension
         self.wall_height = 0.
         # y dimension
@@ -410,18 +410,14 @@ class Mohseni2021FreeSlidingOnASlope(Application):
         return [rigid_body, wall]
 
     def create_scheme(self):
-        rfc = RigidFluidCouplingScheme(rigid_bodies=['rigid_body'],
-                                       fluids=None,
-                                       boundaries=['wall'],
-                                       dim=self.dim,
-                                       rho0=1000.,
-                                       p0=1000 * 100,
-                                       c0=10.,
-                                       gy=self.gy,
-                                       nu=0.,
-                                       h=self.h)
-
-        s = SchemeChooser(default='rfc', rfc=rfc)
+        rb3d = RigidBody3DScheme(rigid_bodies=['rigid_body'],
+                                 boundaries=['wall'],
+                                 gx=0.,
+                                 gy=self.gy,
+                                 gz=0.,
+                                 dim=3,
+                                 fric_coeff=0.45)
+        s = SchemeChooser(default='rb3d', rb3d=rb3d)
         return s
 
     def create_equations(self):
@@ -439,31 +435,19 @@ class Mohseni2021FreeSlidingOnASlope(Application):
     def configure_scheme(self):
         tf = self.tf
 
-        self.scheme.configure_solver(dt=self.dt, tf=tf, pfreq=100)
-
-    # def post_step(self, solver):
-    #     t = solver.t
-    #     # dt = solver.dt
-    #     # T = self.wall_time
-    #     for pa in self.particles:
-    #         if pa.name == 'rigid_body':
-    #             t_1 = pa.normal_force_time[0]
-
-    #             if t <= t_1:
-    #                 pa.tmp_normal_force[0] += pa.delta_fn[0]
-    #                 pa.fy[np.where(pa.force_idx_fn == 1)] += pa.tmp_normal_force[0]
-
-    #             t_2 = pa.normal_force_time[0] + pa.tangential_force_time[0]
-    #             if t > t_1 and t <= t_2:
-    #                 pa.tmp_tangential_force[0] += pa.delta_ft[0]
-    #                 pa.fx[np.where(pa.force_idx_ft == 1)] += pa.tmp_tangential_force[0]
+        output_at_times = np.array([0., 0.5, 1.0])
+        self.scheme.configure_solver(dt=self.dt, tf=tf, pfreq=500,
+                                     output_at_times=output_at_times)
 
     def post_process(self, fname):
         import matplotlib.pyplot as plt
         from matplotlib.patches import Rectangle
         from pysph.solver.utils import load, get_files
+        # from mayavi import mlab
+        # mlab.options.offscreen = True
 
-        output_files = get_files(os.path.dirname(fname))
+        info = self.read_info(fname)
+        output_files = self.output_files
 
         from pysph.solver.utils import iter_output
 
@@ -508,78 +492,114 @@ class Mohseni2021FreeSlidingOnASlope(Application):
         # ========================
         # x amplitude figure
         # ========================
-        # generate plots
-        i = 0
-        output_files = get_files(fname)
-        output_times = np.array([0., 5 * 1e-1, 1. * 1e-0,  2. * 1e-0])
+        # # generate plots
+        # info = self.read_info(fname)
+        # output_files = self.output_files
+        # print(output_files)
+        # # output_times = np.array([0., 5 * 1e-1, 1. * 1e-0,  2. * 1e-0])
+        # output_times = np.array([0.])
+        # logfile = os.path.join(os.path.dirname(fname), 'mohseni_2021_free_sliding_on_a_slope_3d.log')
+        # to_plot = get_files_at_given_times_from_log(output_files, output_times,
+        #                                             logfile)
 
-        for sd, body, wall in iter_output(output_files, 'rigid_body', 'wall'):
-            _t = sd['t']
-            # if _t in output_times:
-            if _t in output_times:
-                s = 0.2
-                # print(_t)
-                fig, axs = plt.subplots(1, 1)
-                axs.scatter(body.x, body.y, s=s, c=body.m)
-                # axs.grid()
-                axs.set_aspect('equal', 'box')
-                # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
+        # mlab.figure(bgcolor=(1, 1, 1), fgcolor=(0, 0, 0), size=(800, 800))
+        # view = None
 
-                # get the maximum and minimum of the geometry
-                x_min = min(body.x) - self.rigid_body_height
-                x_max = max(body.x) + 3. * self.rigid_body_height
-                y_min = min(body.y) - 4. * self.rigid_body_height
-                y_max = max(body.y) + 1. * self.rigid_body_height
+        # for i, f in enumerate(to_plot):
+        #     print(i, f)
+        #     data = load(f)
+        #     t = data['solver_data']['t']
+        #     body = data['arrays']['rigid_body']
+        #     wall = data['arrays']['wall']
 
-                filtr_1 = ((wall.x >= x_min) & (wall.x <= x_max)) & (
-                    (wall.y >= y_min) & (wall.y <= y_max))
-                wall_x = wall.x[filtr_1]
-                wall_y = wall.y[filtr_1]
-                wall_m = wall.m[filtr_1]
+        #     bg = mlab.points3d(
+        #         body.x, body.y, body.z, body.m, mode='point',
+        #         colormap='viridis', vmin=-2, vmax=5
+        #     )
+        #     bg.actor.property.render_points_as_spheres = True
+        #     bg.actor.property.point_size = 10
 
-                tmp = axs.scatter(wall_x, wall_y, s=s, c=wall_m)
+        #     # get the maximum and minimum of the geometry
+        #     x_min = min(body.x) - self.rigid_body_height
+        #     x_max = max(body.x) + 3. * self.rigid_body_height
+        #     y_min = min(body.y) - 4. * self.rigid_body_height
+        #     y_max = max(body.y) + 1. * self.rigid_body_height
 
-                # save the figure
-                figname = os.path.join(os.path.dirname(fname), "time" + str(i) + ".png")
-                fig.savefig(figname, dpi=300)
-                # plt.show()
-                i = i + 1
+        #     filtr_1 = ((wall.x >= x_min) & (wall.x <= x_max)) & (
+        #         (wall.y >= y_min) & (wall.y <= y_max))
+        #     wall_x = wall.x[filtr_1]
+        #     wall_y = wall.y[filtr_1]
+        #     wall_z = wall.z[filtr_1]
+        #     wall_m = wall.m[filtr_1]
 
-        # =======================================
-        # =======================================
-        # Schematic
-        # =======================================
-        files = self.output_files
-        for sd, body, wall in iter_output(files[0:2], 'rigid_body', 'wall'):
-            _t = sd['t']
-            if _t == 0.:
-                s = 0.3
-                # print(_t)
-                fig, axs = plt.subplots(1, 1)
-                axs.scatter(body.x, body.y, s=s, c=body.m)
-                # axs.grid()
-                axs.set_aspect('equal', 'box')
-                # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
+        #     bg = mlab.points3d(
+        #         wall_x, wall_y, wall_z, wall_m, mode='point',
+        #         colormap='viridis', vmin=-2, vmax=5
+        #     )
+        #     bg.actor.property.render_points_as_spheres = True
+        #     bg.actor.property.point_size = 10
 
-                # im_ratio = tmp.shape[0]/tmp.shape[1]
-                x_min = min(body.x) - self.rigid_body_height
-                x_max = max(body.x) + 3. * self.rigid_body_height
-                y_min = min(body.y) - 4. * self.rigid_body_height
-                y_max = max(body.y) + 1. * self.rigid_body_height
+        #     mlab.axes()
+        #     cc = mlab.gcf().scene.camera
 
-                filtr_1 = ((wall.x >= x_min) & (wall.x <= x_max)) & (
-                    (wall.y >= y_min) & (wall.y <= y_max))
-                wall_x = wall.x[filtr_1]
-                wall_y = wall.y[filtr_1]
-                wall_m = wall.m[filtr_1]
-                tmp = axs.scatter(wall_x, wall_y, s=s, c=wall_m)
-                axs.axis('off')
-                axs.set_xticks([])
-                axs.set_yticks([])
+        #     if i == 0:
+        #         cc.position = [0.586053487183876, 0.004303849033652898, 1.473259753499654]
+        #         cc.focal_point = [0.06312874772169114, 0.005215998279429021, -0.021841839056437724]
+        #         cc.view_angle = 30.0
+        #         cc.view_up = [0.001971909716611141, 0.9999980445816752, -0.00014968264907690208]
+        #         cc.clipping_range = [0.0020735062077402457, 2.0735062077402455]
+        #         cc.compute_view_plane_normal()
+        #         mlab.text(0.7, 0.85, f"T = {output_times[i]} sec", width=0.2)
 
-                # save the figure
-                figname = os.path.join(os.path.dirname(fname), "pre_schematic.png")
-                fig.savefig(figname, dpi=300)
+        #     if i == 1:
+        #         cc.position = [0.586053487183876, 0.004303849033652898, 1.473259753499654]
+        #         cc.focal_point = [0.06312874772169114, 0.005215998279429021, -0.021841839056437724]
+        #         cc.view_angle = 30.0
+        #         cc.view_up = [0.001971909716611141, 0.9999980445816752, -0.00014968264907690208]
+        #         cc.clipping_range = [0.0020735062077402457, 2.0735062077402455]
+        #         cc.compute_view_plane_normal()
+        #         mlab.text(0.7, 0.85, f"T = {output_times[i]} sec", width=0.2)
+
+        #     # save the figure
+        #     figname = os.path.join(os.path.dirname(fname), "time" + str(i) + ".png")
+        #     mlab.savefig(figname)
+        #     # plt.show()
+
+        # # =======================================
+        # # =======================================
+        # # Schematic
+        # # =======================================
+        # files = self.output_files
+        # for sd, body, wall in iter_output(files[0:2], 'rigid_body', 'wall'):
+        #     _t = sd['t']
+        #     if _t == 0.:
+        #         s = 0.3
+        #         # print(_t)
+        #         fig, axs = plt.subplots(1, 1)
+        #         axs.scatter(body.x, body.y, s=s, c=body.m)
+        #         # axs.grid()
+        #         axs.set_aspect('equal', 'box')
+        #         # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
+
+        #         # im_ratio = tmp.shape[0]/tmp.shape[1]
+        #         x_min = min(body.x) - self.rigid_body_height
+        #         x_max = max(body.x) + 3. * self.rigid_body_height
+        #         y_min = min(body.y) - 4. * self.rigid_body_height
+        #         y_max = max(body.y) + 1. * self.rigid_body_height
+
+        #         filtr_1 = ((wall.x >= x_min) & (wall.x <= x_max)) & (
+        #             (wall.y >= y_min) & (wall.y <= y_max))
+        #         wall_x = wall.x[filtr_1]
+        #         wall_y = wall.y[filtr_1]
+        #         wall_m = wall.m[filtr_1]
+        #         tmp = axs.scatter(wall_x, wall_y, s=s, c=wall_m)
+        #         axs.axis('off')
+        #         axs.set_xticks([])
+        #         axs.set_yticks([])
+
+        #         # save the figure
+        #         figname = os.path.join(os.path.dirname(fname), "pre_schematic.png")
+        #         fig.savefig(figname, dpi=300)
 
 
 if __name__ == '__main__':

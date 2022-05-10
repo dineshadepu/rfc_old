@@ -22,7 +22,7 @@ from pysph.tools.geometry import get_3d_block
 
 class Amaro2019DamBreakingFlowHittingSixStackedCubes3d(Application):
     def initialize(self):
-        spacing = 0.03
+        spacing = 0.02
         self.hdx = 1.0
 
         self.fluid_length = 4.5
@@ -318,7 +318,7 @@ class Amaro2019DamBreakingFlowHittingSixStackedCubes3d(Application):
         dt = solver.dt
         for pa in self.particles:
             if pa.name == 'wall':
-                pa.y += 0.11 * dt
+                pa.y += 1.9 * dt
 
     def customize_output(self):
         self._mayavi_config('''

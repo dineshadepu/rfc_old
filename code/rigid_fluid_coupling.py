@@ -42,10 +42,37 @@ from rigid_body_common import (add_properties_stride,
                                ComputeContactForceDistanceAndClosestPoint,
                                ComputeContactForce)
 
+from contact_force_mohseni_vyas import (
+    ComputeContactForceNormalsMV,
+    ComputeContactForceDistanceAndClosestPointAndWeightDenominatorMV,
+    ComputeContactForceMV,
+    TransferContactForceMV)
+
 # compute the boundary particles
 from boundary_particles import (get_boundary_identification_etvf_equations,
                                 add_boundary_identification_properties)
 from numpy import sin, cos
+
+
+def get_files_at_given_times_from_log(files, times, logfile):
+    import re
+    result = []
+    time_pattern = r"output at time\ (\d+(?:\.\d+)?)"
+    file_count, time_count = 0, 0
+    with open(logfile, 'r') as f:
+        for line in f:
+            if time_count >= len(times):
+                break
+            t = re.findall(time_pattern, line)
+            if t:
+                if float(t[0]) in times:
+                    result.append(files[file_count])
+                    time_count += 1
+                elif float(t[0]) > times[time_count]:
+                    result.append(files[file_count])
+                    time_count += 1
+                file_count += 1
+    return result
 
 
 class ClampWallPressure(Equation):
@@ -749,16 +776,17 @@ class RigidFluidCouplingScheme(Scheme):
             g5 = []
             for name in self.rigid_bodies:
                 g5.append(
-                    ComputeContactForceNormals(dest=name,
-                                               sources=self.rigid_bodies+self.boundaries))
+                    ComputeContactForceNormalsMV(
+                        dest=name,
+                        sources=self.rigid_bodies+self.boundaries))
 
             stage2.append(Group(equations=g5, real=False))
 
             g5 = []
             for name in self.rigid_bodies:
                 g5.append(
-                    ComputeContactForceDistanceAndClosestPoint(
-                        dest=name, sources=self.rigid_bodies+self.boundaries))
+                    ComputeContactForceDistanceAndClosestPointAndWeightDenominatorMV
+                    (dest=name, sources=self.rigid_bodies+self.boundaries))
             stage2.append(Group(equations=g5, real=False))
 
         if len(self.rigid_bodies) > 0:
@@ -775,17 +803,24 @@ class RigidFluidCouplingScheme(Scheme):
             g5 = []
             for name in self.rigid_bodies:
                 g5.append(
-                    ComputeContactForce(dest=name,
-                                        sources=None,
-                                        kr=self.kr,
-                                        kf=self.kf,
-                                        fric_coeff=self.fric_coeff))
+                    ComputeContactForceMV(
+                        dest=name,
+                        sources=None,
+                        kr=self.kr,
+                        kf=self.kf,
+                        fric_coeff=self.fric_coeff))
 
             # add the force due to fluid
             if len(self.fluids) > 0:
                 for name in self.rigid_bodies:
                     g5.append(ForceOnRigidBodyDuetoFluid(dest=name,
                                                          sources=self.fluids))
+            g5 = []
+            for name in self.rigid_bodies:
+                g5.append(
+                    TransferContactForceMV(
+                        dest=name,
+                        sources=self.rigid_bodies))
 
             stage2.append(Group(equations=g5, real=False))
 
@@ -874,7 +909,8 @@ class RigidFluidCouplingScheme(Scheme):
                                   'ti_x',
                                   'ti_y',
                                   'ti_z',
-                                  'closest_point_dist_to_source')
+                                  'closest_point_dist_to_source',
+                                  'contact_force_weight_denominator')
 
             add_properties(pa, 'fx', 'fy', 'fz', 'dx0', 'dy0', 'dz0')
 

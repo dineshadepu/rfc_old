@@ -120,7 +120,7 @@ class ZhangStackOfCylinders(Application):
 
         # solver data
         self.tf = 0.5 + self.wall_time
-        self.dt = 5e-5
+        self.dt = 1e-5
 
         # Rigid body collision related data
         self.limit = 6
@@ -140,10 +140,10 @@ class ZhangStackOfCylinders(Application):
                                        h=h,
                                        m=m,
                                        rad_s=rad_s,
+                                       E=69 * 1e9,
+                                       nu=0.3,
                                        constants={
-                                           'E': 69 * 1e9,
-                                           'poisson_ratio': 0.3,
-                                           'initial_spacing0': self.cylinder_spacing,
+                                           'spacing0': self.cylinder_spacing,
                                        })
         cylinders.add_property('dem_id', type='int', data=dem_id)
         cylinders.add_property('body_id', type='int', data=body_id)
@@ -162,10 +162,8 @@ class ZhangStackOfCylinders(Application):
                                  m=m,
                                  rad_s=self.dam_spacing / 2.,
                                  name="dam",
-                                 constants={
-                                     'E': 30 * 1e8,
-                                     'poisson_ratio': 0.3,
-                                 })
+                                 E=30*1e8,
+                                 nu=0.3)
         dam.add_property('dem_id', type='int', data=max(body_id) + 1)
 
         # create wall with normals
@@ -183,10 +181,12 @@ class ZhangStackOfCylinders(Application):
                                   m=m,
                                   rad_s=self.cylinder_spacing / 2.,
                                   name="wall",
-                                  constants={
-                                      'E': 30 * 1e8,
-                                      'poisson_ratio': 0.3,
-                                  })
+                                  E=30*1e8,
+                                  nu=0.3)
+                                  # constants={
+                                  #     'E': 30 * 1e8,
+                                  #     'poisson_ratio': 0.3,
+                                  # })
         wall.add_property('dem_id', type='int', data=max(body_id) + 2)
 
         self.scheme.setup_properties([cylinders, dam, wall])
@@ -232,6 +232,8 @@ class ZhangStackOfCylinders(Application):
                                 dtype=float) * 0.6
         cylinders.add_constant('coeff_of_rest', coeff_of_rest)
         setup_damping_coefficient(cylinders, [cylinders], boundaries=[dam, wall])
+
+        # print(cylinders.total_mass)
 
         return [cylinders, dam, wall]
 
@@ -295,7 +297,6 @@ class ZhangStackOfCylinders(Application):
         is_boundary = is_boundary_tmp.ravel()
 
         return is_boundary
-
 
     def create_cylinders_stack_1(self):
         # create a row of six cylinders
@@ -451,11 +452,9 @@ class ZhangStackOfCylinders(Application):
         the experiment.
         By running the example it becomes much clear.
         """
-        if len(self.output_files) == 0:
-            return
-
-        from pysph.solver.utils import iter_output
+        from pysph.solver.utils import iter_output, get_files
         import os
+        info = self.read_info(fname)
         files = self.output_files
         t = []
         system_x = []
@@ -507,6 +506,33 @@ class ZhangStackOfCylinders(Application):
         plt.legend()
         fig = os.path.join(os.path.dirname(fname), "ycom.png")
         plt.savefig(fig, dpi=300)
+
+        # generate plots
+        info = self.read_info(fname)
+        output_files = self.output_files
+        output_times = np.array([0.2, 0.3, 0.5, 0.7])
+
+        count = 0
+        for sd, body, wall in iter_output(output_files, 'cylinders', 'dam'):
+            _t = sd['t']
+            if count >= len(output_times):
+                break
+            if abs(_t - output_times[count]) < _t * 1e-8:
+                print(_t)
+                s = 0.2
+                # print(_t)
+                fig, axs = plt.subplots(1, 1)
+                axs.scatter(body.x, body.y, s=s, c=body.m)
+                # axs.grid()
+                axs.set_aspect('equal', 'box')
+                # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
+
+                tmp = axs.scatter(wall.x, wall.y, s=s, c=wall.m)
+                # save the figure
+                figname = os.path.join(os.path.dirname(fname), "time" + str(count) + ".png")
+                fig.savefig(figname, dpi=300)
+                # plt.show()
+                count += 1
 
     def customize_output(self):
         self._mayavi_config('''

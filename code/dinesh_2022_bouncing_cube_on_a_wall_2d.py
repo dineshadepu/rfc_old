@@ -1,256 +1,540 @@
+"""Simulation of solid-fluid mixture flow using moving particle methods
+Shuai Zhang
+
+TODO: 1. Fix the dam such that the bottom layer is y - spacing/2.
+TODO: 2. Implement a simple 2d variant of rigid body collision.
 """
-Test the collision of two rigid bodues made of same particle array
-"""
+
+from __future__ import print_function
 import numpy as np
 
-from pysph.base.kernels import CubicSpline
-# from pysph.base.utils import get_particle_array_rigid_body
-from pysph.base.utils import get_particle_array
-from pysph.sph.integrator import EPECIntegrator
 from pysph.solver.application import Application
 from pysph.sph.scheme import SchemeChooser
 
-from rigid_fluid_coupling import RigidFluidCouplingScheme
-from geometry import hydrostatic_tank_2d
+from pysph.base.utils import (get_particle_array)
 
-from pysph.examples.solid_mech.impact import add_properties
-from pysph.examples.rigid_body.sphere_in_vessel_akinci import (create_boundary,
-                                                               create_fluid,
-                                                               create_sphere)
-from pysph.tools.geometry import get_2d_block
+# from rigid_fluid_coupling import RigidFluidCouplingScheme
+from rigid_body_3d import RigidBody3DScheme
+from rigid_body_common import setup_damping_coefficient
+
+from pysph.tools.geometry import get_2d_block, get_2d_tank
 
 
-class Simulation1Dinesh2022BouncingCubeOnAWall2D(Application):
+def create_circle_1(diameter=1, spacing=0.05, center=None):
+    dx = spacing
+    x = [0.0]
+    y = [0.0]
+    r = spacing
+    nt = 0
+    radius = diameter / 2.
+
+    tmp_dist = radius - spacing/2.
+    i = 0
+    while tmp_dist > spacing/2.:
+        perimeter = 2. * np.pi * tmp_dist
+        no_of_points = int(perimeter / spacing) + 1
+        theta = np.linspace(0., 2. * np.pi, no_of_points)
+        for t in theta[:-1]:
+            x.append(tmp_dist * np.cos(t))
+            y.append(tmp_dist * np.sin(t))
+        i = i + 1
+        tmp_dist = radius - spacing/2. - i * spacing
+
+    x = np.array(x)
+    y = np.array(y)
+    x, y = (t.ravel() for t in (x, y))
+    if center is None:
+        return x, y
+    else:
+        return x + center[0], y + center[1]
+
+
+def create_circle(diameter=1, spacing=0.05, center=None):
+    radius = diameter/2.
+    xtmp, ytmp = get_2d_block(spacing, diameter+spacing, diameter+spacing)
+    x = []
+    y = []
+    for i in range(len(xtmp)):
+        dist = xtmp[i]**2. + ytmp[i]**2.
+        if dist < radius**2:
+            x.append(xtmp[i])
+            y.append(ytmp[i])
+
+    x = np.array(x)
+    y = np.array(y)
+    x, y = (t.ravel() for t in (x, y))
+    if center is None:
+        return x, y
+    else:
+        return x + center[0], y + center[1]
+
+
+def hydrostatic_tank_2d(fluid_length, fluid_height, tank_height, tank_layers,
+                        fluid_spacing, tank_spacing):
+    xt, yt = get_2d_tank(dx=tank_spacing,
+                         length=fluid_length + 2. * tank_spacing,
+                         height=tank_height,
+                         num_layers=tank_layers)
+    xf, yf = get_2d_block(dx=fluid_spacing,
+                          length=fluid_length,
+                          height=fluid_height,
+                          center=[-1.5, 1])
+
+    xf += (np.min(xt) - np.min(xf))
+    yf -= (np.min(yf) - np.min(yt))
+
+    # now adjust inside the tank
+    xf += tank_spacing * (tank_layers)
+    yf += tank_spacing * (tank_layers)
+
+    return xf, yf, xt, yt
+
+
+class ZhangStackOfCylinders(Application):
     def initialize(self):
-        spacing = 0.05
-        self.hdx = 1.3
-
-        self.fluid_length = 1.0
-        self.fluid_height = 1.0
-        self.fluid_density = 1000.0
-        self.fluid_spacing = spacing
-
-        self.tank_height = 1.5
-        self.tank_layers = 5
-        self.tank_spacing = spacing
-
-        self.body_height = 0.2
-        self.body_length = 0.2
-        self.body_density = 2000
-        self.body_spacing = spacing / 2.
-        self.body_h = self.hdx * self.body_spacing
-
-        self.h = self.hdx * self.fluid_spacing
-
-        # self.solid_rho = 500
-        # self.m = 1000 * self.dx * self.dx
-        self.co = 10 * np.sqrt(2 * 9.81 * self.fluid_height)
-        self.p0 = self.fluid_density * self.co**2.
-        self.c0 = self.co
-        self.alpha = 0.1
-        self.gx = 0.
-        self.gy = -9.81
-        self.gz = 0.
         self.dim = 2
+        spacing = 1.
 
-    def add_user_options(self, group):
-        from pysph.sph.scheme import add_bool_argument
-        add_bool_argument(group, 'two-cubes', dest='use_two_cubes',
-                          default=False, help='Use two cubes')
+        self.dam_length = 26 * 1e-2
+        self.dam_height = 26 * 1e-2
+        self.dam_spacing = spacing * 1e-3
+        self.dam_layers = 5
+        self.dam_rho = 2000.
 
-        add_bool_argument(group, 'three-cubes', dest='use_three_cubes',
-                          default=False, help='Use three cubes')
+        self.cylinder_radius = 1. / 2. * 1e-2
+        self.cylinder_diameter = 1. * 1e-2
+        self.cylinder_spacing = spacing * 1e-3
+        self.cylinder_rho = 2700
 
-        add_bool_argument(group, 'pyramid-cubes', dest='use_pyramid_cubes',
-                          default=False, help='Use pyramid cubes')
+        self.wall_height = 20 * 1e-2
+        self.wall_spacing = spacing * 1e-3
+        self.wall_layers = 2
+        self.wall_time = 0.2
+        self.wall_rho = 2700
 
-    def consume_user_options(self):
-        self.use_two_cubes = self.options.use_two_cubes
-        self.use_three_cubes = self.options.use_three_cubes
-        self.use_pyramid_cubes = self.options.use_pyramid_cubes
+        # simulation properties
+        self.hdx = 1.0
+        self.alpha = 0.1
+        self.gy = -9.81
+        self.h = self.hdx * self.cylinder_spacing
 
-    def create_two_cubes(self):
-        xb1, yb1 = get_2d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height)
+        # solver data
+        self.tf = 0.5 + self.wall_time
+        self.dt = 5e-5
 
-        xb2, yb2 = get_2d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height)
-        yb2 += max(yb1) - min(yb2) + self.body_spacing * 1.
-
-        xb = np.concatenate([xb1, xb2])
-        yb = np.concatenate([yb1, yb2])
-
-        body_id1 = np.zeros(len(xb1), dtype=int)
-        body_id2 = np.ones(len(xb2), dtype=int)
-        body_id = np.concatenate([body_id1, body_id2])
-
-        dem_id = np.concatenate([body_id1, body_id2])
-
-        return xb, yb, body_id, dem_id
-
-    def create_three_cubes(self):
-        xb1, yb1 = get_2d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height)
-
-        xb2, yb2 = get_2d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height)
-
-        xb3, yb3 = get_2d_block(dx=self.body_spacing,
-                                length=self.body_length,
-                                height=self.body_height)
-
-        yb2 += max(yb1) - min(yb2) + self.body_spacing * 1.
-        yb3 += max(yb2) - min(yb3) + self.body_spacing * 1.
-
-        xb = np.concatenate([xb1, xb2, xb3])
-        yb = np.concatenate([yb1, yb2, yb3])
-
-        body_id1 = np.zeros(len(xb1), dtype=int)
-        body_id2 = np.ones(len(xb2), dtype=int)
-        body_id3 = np.ones(len(xb3), dtype=int)
-        body_id = np.concatenate([body_id1, body_id2, body_id3])
-
-        dem_id = np.concatenate([body_id1, body_id2, body_id3])
-
-        return xb, yb, body_id, dem_id
+        # Rigid body collision related data
+        self.limit = 6
+        self.seval = None
 
     def create_particles(self):
-        xf, yf, xt, yt = hydrostatic_tank_2d(
-            self.fluid_length, self.fluid_height, self.tank_height,
-            self.tank_layers, self.body_spacing, self.body_spacing)
+        # get bodyid for each cylinder
+        x1, y1 = create_circle_1(
+            self.cylinder_diameter, self.cylinder_spacing, [
+                self.cylinder_radius,
+                self.cylinder_radius + self.cylinder_spacing / 2.
+            ])
+        x2, y2 = create_circle_1(
+            self.cylinder_diameter, self.cylinder_spacing, [
+                self.cylinder_radius,
+                self.cylinder_radius + self.cylinder_spacing / 2.
+            ])
+        y2 += self.cylinder_diameter * 2.
+        xc = np.concatenate([x1, x2])
+        yc = np.concatenate([y1, y2])
 
-        m_fluid = self.fluid_density * self.fluid_spacing**2.
+        body_id_1 = np.zeros(len(x1), dtype=int)
+        body_id_2 = np.ones(len(x2), dtype=int)
+        body_id = np.concatenate([body_id_1, body_id_2])
 
-        if self.use_two_cubes is True:
-            xb, yb, body_id, dem_id = self.create_two_cubes()
-        elif self.use_three_cubes is True:
-            xb, yb, body_id, dem_id = self.create_three_cubes()
-        elif self.use_pyramid_cubes is True:
-            xb, yb, body_id, dem_id = self.create_three_cubes()
-        else:
-            print("=====================================")
-            print("Choose among the given configurations")
-            print("=====================================")
-            print("=                                   =")
-            print("=      Two cubes                    =")
-            print("=                                   =")
-            print("=      Three cubes                  =")
-            print("=                                   =")
-            print("=                                   =")
-            print("=      Pyramid cubes                =")
-            print("=                                   =")
-            print("=                                   =")
-            print("=                                   =")
-            print("=====================================")
+        m = self.cylinder_rho * self.cylinder_spacing**2
+        h = self.hdx * self.cylinder_spacing
+        rad_s = self.cylinder_spacing / 2.
+        cylinders = get_particle_array(name='cylinders',
+                                       x=xc,
+                                       y=yc,
+                                       rho=self.cylinder_rho,
+                                       h=h,
+                                       m=m,
+                                       rad_s=rad_s,
+                                       E=69 * 1e9,
+                                       nu=0.3,
+                                       constants={
+                                           'spacing0': self.cylinder_spacing,
+                                       })
+        cylinders.add_property('dem_id', type='int', data=body_id)
+        cylinders.add_property('body_id', type='int', data=body_id)
+        cylinders.add_constant('total_no_bodies', [3])
 
-        m = self.body_density * self.body_spacing**self.dim
-        body = get_particle_array(name='body',
-                                  x=xb,
-                                  y=yb,
-                                  h=self.body_h,
-                                  m=m,
-                                  rho=self.body_density,
-                                  m_fluid=m_fluid,
-                                  rad_s=self.body_spacing / 2.,
-                                  constants={
-                                      'E': 69 * 1e9,
-                                      'poisson_ratio': 0.3,
-                                      'spacing0': self.body_spacing,
-                                  })
-        body.y[:] += self.body_height * 2.
+        # create dam with normals
+        _xf, _yf, xd, yd = hydrostatic_tank_2d(
+            self.dam_length, self.dam_height, self.dam_height, self.dam_layers,
+            self.cylinder_spacing, self.cylinder_spacing)
+        xd += min(cylinders.x) - min(xd) - self.dam_spacing * self.dam_layers
 
-        body.add_property('body_id', type='int', data=body_id)
-        body.add_property('dem_id', type='int', data=dem_id)
-        body.add_constant('total_no_bodies', [max(body_id) + 2])
+        dam = get_particle_array(x=xd,
+                                 y=yd,
+                                 rho=self.cylinder_rho,
+                                 h=h,
+                                 m=m,
+                                 rad_s=self.dam_spacing / 2.,
+                                 name="dam",
+                                 E=30*1e8,
+                                 nu=0.3)
+        dam.add_property('dem_id', type='int', data=max(body_id) + 1)
 
-        # ===============================
-        # create a tank
-        # ===============================
-        x, y = xt, yt
-        dem_id = body_id
-        m = self.body_density * self.body_spacing**2
-        h = self.body_h
-        rad_s = self.body_spacing / 2.
+        cylinders.y[:] += 2. * self.cylinder_diameter
+        cylinders.x[:] += 2. * self.cylinder_diameter
+        self.scheme.setup_properties([cylinders, dam])
 
-        tank = get_particle_array(name='tank',
-                                  x=x,
-                                  y=y,
-                                  h=h,
-                                  m=m,
-                                  rho=self.body_density,
-                                  rad_s=rad_s,
-                                  constants={
-                                      'E': 69 * 1e9,
-                                      'poisson_ratio': 0.3,
-                                  })
-        max_dem_id = max(dem_id)
-        tank.add_property('dem_id', type='int', data=max_dem_id + 1)
+        # compute the boundary particles of the cylinders
+        cylinders.add_property('contact_force_is_boundary')
+        is_boundary = self.get_boundary_particles(max(cylinders.body_id)+1)
+        cylinders.contact_force_is_boundary[:] = is_boundary[:]
+        cylinders.is_boundary[:] = is_boundary[:]
 
-        # ==================================================
-        # adjust the rigid body positions on top of the wall
-        # ==================================================
-        body.y[:] -= min(body.y) - min(tank.y)
-        body.y[:] += self.tank_layers * self.body_spacing
+        dam.add_property('contact_force_is_boundary')
+        dam.contact_force_is_boundary[:] = dam.is_boundary[:]
 
-        self.scheme.setup_properties([body, tank])
+        # remove particles which are not used in computation
+        indices = []
+        for i in range(len(dam.x)):
+            if dam.is_boundary[i] == 0:
+                indices.append(i)
 
-        body.add_property('contact_force_is_boundary')
-        body.contact_force_is_boundary[:] = body.is_boundary[:]
+        dam.remove_particles(indices)
 
-        tank.add_property('contact_force_is_boundary')
-        tank.contact_force_is_boundary[:] = tank.is_boundary[:]
+        # remove particles which are not used in computation
+        min_x = min(dam.x)
+        max_x = max(dam.x)
+        min_y = min(dam.y)
+        indices = []
+        for i in range(len(dam.x)):
+            if dam.x[i] < min_x + self.cylinder_spacing/2.:
+                indices.append(i)
 
-        self.scheme.scheme.set_linear_velocity(
-            body, np.array([
-                2,
-                0.,
-                0.,
-                -2,
-                0.,
-                0.,
-            ]))
+            if dam.y[i] < min_y + self.cylinder_spacing/2.:
+                indices.append(i)
 
-        # # remove particles outside the circle
-        # indices = []
-        # for i in range(len(tank.x)):
-        #     if tank.is_boundary[i] == 0:
-        #         indices.append(i)
+            if dam.x[i] > max_x - self.cylinder_spacing/2.:
+                indices.append(i)
 
-        # tank.remove_particles(indices)
+        dam.remove_particles(indices)
 
-        return [body, tank]
+        coeff_of_rest = np.ones(cylinders.nb[0]*cylinders.total_no_bodies[0], dtype=float) * 0.6
+        cylinders.add_constant('coeff_of_rest', coeff_of_rest)
+        setup_damping_coefficient(cylinders, [cylinders], boundaries=[dam])
+
+
+        # print(cylinders.total_mass)
+
+        return [cylinders, dam]
 
     def create_scheme(self):
-        rfc = RigidFluidCouplingScheme(rigid_bodies=['body'],
-                                       fluids=None,
-                                       boundaries=['tank'],
-                                       dim=self.dim,
-                                       rho0=self.fluid_density,
-                                       p0=1.,
-                                       c0=1.,
-                                       gx=self.gx,
-                                       gy=self.gy,
-                                       gz=self.gz,
-                                       nu=0.,
-                                       alpha=self.alpha,
-                                       h=self.h)
-
-        s = SchemeChooser(default='rfc', rfc=rfc)
+        rb3d = RigidBody3DScheme(rigid_bodies=['cylinders'],
+                                 boundaries=['dam'],
+                                 gx=0.,
+                                 gy=self.gy,
+                                 gz=0.,
+                                 dim=2,
+                                 fric_coeff=0.45)
+        s = SchemeChooser(default='rb3d', rb3d=rb3d)
         return s
 
     def configure_scheme(self):
-        dt = 1e-4
-        print("DT: %s" % dt)
-        tf = 0.5
+        tf = self.tf
 
-        self.scheme.configure_solver(dt=dt, tf=tf, pfreq=100)
+        self.scheme.configure_solver(dt=self.dt, tf=tf, pfreq=100)
+
+    def get_boundary_particles(self, no_bodies):
+        from boundary_particles import (get_boundary_identification_etvf_equations,
+                                        add_boundary_identification_properties)
+        from pysph.tools.sph_evaluator import SPHEvaluator
+        from pysph.base.kernels import (QuinticSpline)
+        # create a row of six cylinders
+        x, y = create_circle_1(
+            self.cylinder_diameter, self.cylinder_spacing, [
+                self.cylinder_radius,
+                self.cylinder_radius + self.cylinder_spacing / 2.
+            ])
+        m = self.cylinder_rho * self.cylinder_spacing**2
+        h = self.hdx * self.cylinder_spacing
+        rad_s = self.cylinder_spacing / 2.
+        pa = get_particle_array(name='foo',
+                                x=x,
+                                y=y,
+                                rho=self.cylinder_rho,
+                                h=h,
+                                m=m,
+                                rad_s=rad_s,
+                                constants={
+                                    'E': 69 * 1e9,
+                                    'poisson_ratio': 0.3,
+                                })
+
+        add_boundary_identification_properties(pa)
+        # make sure your rho is not zero
+        equations = get_boundary_identification_etvf_equations([pa.name],
+                                                               [pa.name])
+
+        sph_eval = SPHEvaluator(arrays=[pa],
+                                equations=equations,
+                                dim=self.dim,
+                                kernel=QuinticSpline(dim=self.dim))
+
+        sph_eval.evaluate(dt=0.1)
+
+        tmp = pa.is_boundary
+        is_boundary_tmp = np.tile(tmp, no_bodies)
+        is_boundary = is_boundary_tmp.ravel()
+
+        return is_boundary
+
+    def create_cylinders_stack_1(self):
+        # create a row of six cylinders
+        x_six_1 = np.array([])
+        y_six_1 = np.array([])
+        x_tmp1, y_tmp1 = create_circle_1(
+            self.cylinder_diameter, self.cylinder_spacing, [
+                self.cylinder_radius,
+                self.cylinder_radius + self.cylinder_spacing / 2.
+            ])
+        for i in range(6):
+            x_tmp = x_tmp1 + i * (self.cylinder_diameter +
+                                  self.cylinder_spacing/4.)
+            x_six_1 = np.concatenate((x_six_1, x_tmp))
+            y_six_1 = np.concatenate((y_six_1, y_tmp1))
+
+        # create a row of five cylinders
+        x_five_1 = np.array([])
+        y_five_1 = np.array([])
+        x_tmp1, y_tmp1 = create_circle_1(
+            self.cylinder_diameter, self.cylinder_spacing, [
+                2. * self.cylinder_radius, self.cylinder_radius +
+                self.cylinder_spacing + 2. * self.cylinder_spacing
+            ])
+
+        for i in range(5):
+            x_tmp = x_tmp1 + i * (self.cylinder_diameter +
+                                  self.cylinder_spacing / 2.)
+            x_five_1 = np.concatenate((x_five_1, x_tmp))
+            y_five_1 = np.concatenate((y_five_1, y_tmp1))
+
+        y_five_1 = y_five_1 + .78 * self.cylinder_diameter
+        x_five_1 = x_five_1 - self.cylinder_spacing/2.
+
+        # Create the third row from bottom, six cylinders
+        x_six_2 = np.array(x_six_1, copy=True)
+        y_six_2 = np.array(y_six_1, copy=True)
+        y_six_2 += np.max(y_five_1) - np.min(y_six_1) + self.cylinder_spacing
+
+        # Create the fourth row from bottom, five cylinders
+        x_five_2 = np.array(x_five_1, copy=True)
+        y_five_2 = np.array(y_five_1, copy=True)
+        y_five_2 += np.max(y_six_2) - np.min(y_five_2) + self.cylinder_spacing
+
+        # Create the third row from bottom, six cylinders
+        x_six_3 = np.array(x_six_2, copy=True)
+        y_six_3 = np.array(y_six_2, copy=True)
+        y_six_3 += np.max(y_five_2) - np.min(y_six_3) + self.cylinder_spacing
+
+        # Create the fourth row from bottom, five cylinders
+        x_five_3 = np.array(x_five_2, copy=True)
+        y_five_3 = np.array(y_five_2, copy=True)
+        y_five_3 += np.max(y_six_3) - np.min(y_five_2) + self.cylinder_spacing
+
+        x = np.concatenate((x_six_1, x_five_1, x_six_2, x_five_2,
+                            x_six_3, x_five_3))
+        y = np.concatenate((y_six_1, y_five_1, y_six_2, y_five_2,
+                            y_six_3, y_five_3))
+
+        # create body_id
+        no_particles_one_cylinder = len(x_tmp)
+        total_bodies = 3 * 5 + 3 * 6
+
+        body_id = np.array([], dtype=int)
+        for i in range(total_bodies):
+            b_id = np.ones(no_particles_one_cylinder, dtype=int) * i
+            body_id = np.concatenate((body_id, b_id))
+
+        return x, y, body_id
+
+    def create_cylinders_stack(self):
+        # create a row of six cylinders
+        x_six_1 = np.array([])
+        y_six_1 = np.array([])
+        x_tmp1, y_tmp1 = create_circle(
+            self.cylinder_diameter, self.cylinder_spacing, [
+                self.cylinder_radius,
+                self.cylinder_radius + self.cylinder_spacing / 2.
+            ])
+        for i in range(6):
+            x_tmp = x_tmp1 + i * (self.cylinder_diameter +
+                                  self.cylinder_spacing/4.)
+            x_six_1 = np.concatenate((x_six_1, x_tmp))
+            y_six_1 = np.concatenate((y_six_1, y_tmp1))
+
+        # create a row of five cylinders
+        x_five_1 = np.array([])
+        y_five_1 = np.array([])
+        x_tmp1, y_tmp1 = create_circle(
+            self.cylinder_diameter, self.cylinder_spacing, [
+                2. * self.cylinder_radius, self.cylinder_radius +
+                self.cylinder_spacing + 2. * self.cylinder_spacing
+            ])
+
+        for i in range(5):
+            x_tmp = x_tmp1 + i * (self.cylinder_diameter +
+                                  self.cylinder_spacing / 2.)
+            x_five_1 = np.concatenate((x_five_1, x_tmp))
+            y_five_1 = np.concatenate((y_five_1, y_tmp1))
+
+        y_five_1 = y_five_1 + .78 * self.cylinder_diameter
+        x_five_1 = x_five_1 - self.cylinder_spacing/2.
+
+        # Create the third row from bottom, six cylinders
+        x_six_2 = np.array(x_six_1, copy=True)
+        y_six_2 = np.array(y_six_1, copy=True)
+        y_six_2 += np.max(y_five_1) - np.min(y_six_1) + self.cylinder_spacing
+
+        # Create the fourth row from bottom, five cylinders
+        x_five_2 = np.array(x_five_1, copy=True)
+        y_five_2 = np.array(y_five_1, copy=True)
+        y_five_2 += np.max(y_six_2) - np.min(y_five_2) + self.cylinder_spacing
+
+        # Create the third row from bottom, six cylinders
+        x_six_3 = np.array(x_six_2, copy=True)
+        y_six_3 = np.array(y_six_2, copy=True)
+        y_six_3 += np.max(y_five_2) - np.min(y_six_3) + self.cylinder_spacing
+
+        # Create the fourth row from bottom, five cylinders
+        x_five_3 = np.array(x_five_2, copy=True)
+        y_five_3 = np.array(y_five_2, copy=True)
+        y_five_3 += np.max(y_six_3) - np.min(y_five_2) + self.cylinder_spacing
+
+        x = np.concatenate((x_six_1, x_five_1, x_six_2, x_five_2,
+                            x_six_3, x_five_3))
+        y = np.concatenate((y_six_1, y_five_1, y_six_2, y_five_2,
+                            y_six_3, y_five_3))
+
+        # create body_id
+        no_particles_one_cylinder = len(x_tmp)
+        total_bodies = 3 * 5 + 3 * 6
+
+        body_id = np.array([], dtype=int)
+        for i in range(total_bodies):
+            b_id = np.ones(no_particles_one_cylinder, dtype=int) * i
+            body_id = np.concatenate((body_id, b_id))
+
+        return x, y, body_id
+
+    def post_step(self, solver):
+        t = solver.t
+        dt = solver.dt
+        T = self.wall_time
+        if (T - dt / 2) < t < (T + dt / 2):
+            for pa in self.particles:
+                if pa.name == 'wall':
+                    pa.x += 0.25
+
+    def post_process(self, fname):
+        """This function will run once per time step after the time step is
+        executed. For some time (self.wall_time), we will keep the wall near
+        the cylinders such that they settle down to equilibrium and replicate
+        the experiment.
+        By running the example it becomes much clear.
+        """
+        from pysph.solver.utils import iter_output, get_files
+        import os
+        info = self.read_info(fname)
+        files = self.output_files
+        t = []
+        system_x = []
+        system_y = []
+        for sd, array in iter_output(files[::1], 'cylinders'):
+            _t = sd['t']
+            t.append(_t)
+            # get the system center
+            cm_x = 0
+            cm_y = 0
+            for i in range(array.nb[0]):
+                cm_x += array.xcm[3 * i]
+                cm_y += array.xcm[3 * i + 1]
+            cm_x = cm_x / 33
+            cm_y = cm_y / 33
+
+            system_x.append(cm_x / self.dam_length)
+            system_y.append(cm_y / self.dam_length)
+
+        import matplotlib.pyplot as plt
+        t = np.asarray(t)
+        t = t - self.wall_time
+
+        # gtvf data
+        path = os.path.abspath(__file__)
+        directory = os.path.dirname(path)
+
+        data = np.loadtxt(os.path.join(directory, 'x_com_zhang.csv'),
+                          delimiter=',')
+        tx, xcom_zhang = data[:, 0], data[:, 1]
+
+        plt.plot(tx, xcom_zhang, "s--", label='Experimental')
+        plt.plot(t, system_x, "s-", label='Simulated PySPH')
+        plt.xlabel("time")
+        plt.ylabel("x/L")
+        plt.legend()
+        fig = os.path.join(os.path.dirname(fname), "xcom.png")
+        plt.savefig(fig, dpi=300)
+        plt.clf()
+
+        data = np.loadtxt(os.path.join(directory, 'y_com_zhang.csv'),
+                          delimiter=',')
+        ty, ycom_zhang = data[:, 0], data[:, 1]
+
+        # plt.plot(ty, ycom_zhang, "s--", label='Experimental')
+        plt.plot(t, system_y, "s-", label='Simulated PySPH')
+        plt.xlabel("time")
+        plt.ylabel("y/L")
+        plt.legend()
+        fig = os.path.join(os.path.dirname(fname), "ycom.png")
+        plt.savefig(fig, dpi=300)
+
+        # generate plots
+        info = self.read_info(fname)
+        output_files = self.output_files
+        output_times = np.array([0.2, 0.3, 0.5, 0.7])
+
+        count = 0
+        for sd, body, wall in iter_output(output_files, 'cylinders', 'dam'):
+            _t = sd['t']
+            if count >= len(output_times):
+                break
+            if abs(_t - output_times[count]) < _t * 1e-8:
+                print(_t)
+                s = 0.2
+                # print(_t)
+                fig, axs = plt.subplots(1, 1)
+                axs.scatter(body.x, body.y, s=s, c=body.m)
+                # axs.grid()
+                axs.set_aspect('equal', 'box')
+                # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
+
+                tmp = axs.scatter(wall.x, wall.y, s=s, c=wall.m)
+                # save the figure
+                figname = os.path.join(os.path.dirname(fname), "time" + str(count) + ".png")
+                fig.savefig(figname, dpi=300)
+                # plt.show()
+                count += 1
+
+    def customize_output(self):
+        self._mayavi_config('''
+        b = particle_arrays['cylinders']
+        b.plot.actor.property.point_size = 2.
+        ''')
 
 
 if __name__ == '__main__':
-    app = Simulation1Dinesh2022BouncingCubeOnAWall2D()
+    app = ZhangStackOfCylinders()
+    # app.create_particles()
+    # app.geometry()
     app.run()
-    # app.post_process(app.info_filename)
+    app.post_process(app.info_filename)

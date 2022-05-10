@@ -31,10 +31,38 @@ from rigid_body_common import (add_properties_stride,
                                ComputeContactForceDistanceAndClosestPoint,
                                ComputeContactForce)
 
+from contact_force_mohseni_vyas import (
+    ComputeContactForceNormalsMV,
+    ComputeContactForceDistanceAndClosestPointAndWeightDenominatorMV,
+    ComputeContactForceLinearMV,
+    ComputeContactForceNonLinearMV,
+    TransferContactForceMV)
+
 # compute the boundary particles
 from boundary_particles import (get_boundary_identification_etvf_equations,
                                 add_boundary_identification_properties)
 from numpy import sin, cos
+
+
+def get_files_at_given_times_from_log(files, times, logfile):
+    import re
+    result = []
+    time_pattern = r"output at time\ (\d+(?:\.\d+)?)"
+    file_count, time_count = 0, 0
+    with open(logfile, 'r') as f:
+        for line in f:
+            if time_count >= len(times):
+                break
+            t = re.findall(time_pattern, line)
+            if t:
+                if float(t[0]) in times:
+                    result.append(files[file_count])
+                    time_count += 1
+                elif float(t[0]) > times[time_count]:
+                    result.append(files[file_count])
+                    time_count += 1
+                file_count += 1
+    return result
 
 
 class GTVFRigidBody3DStep(IntegratorStep):
@@ -576,8 +604,8 @@ class RK2RigidBody3DStep(IntegratorStep):
 
 
 class RigidBody3DScheme(Scheme):
-    def __init__(self, rigid_bodies, boundaries, dim,
-                 kr=1e5, kf=1e5, en=0.5, fric_coeff=0.5, gx=0.0, gy=0.0, gz=0.0):
+    def __init__(self, rigid_bodies, boundaries, dim, kr=1e5, kf=1e5, en=0.5,
+                 Cn=1.4*1e-5, fric_coeff=0.5, gx=0.0, gy=0.0, gz=0.0):
         self.rigid_bodies = rigid_bodies
 
         if boundaries is None:
@@ -603,6 +631,10 @@ class RigidBody3DScheme(Scheme):
         self.kr = kr
         self.kf = kf
         self.fric_coeff = fric_coeff
+        self.Cn = Cn
+        self.contact_force_model = "Mohseni_Vyas"
+        self.linear_contact_force = True
+        self.non_linear_contact_force = False
 
         self.solver = None
 
@@ -625,13 +657,37 @@ class RigidBody3DScheme(Scheme):
                            type=float,
                            help="Tangential spring stiffness")
 
+        group.add_argument("--Cn", action="store",
+                           dest="Cn", default=1.4*1e-5,
+                           type=float,
+                           help="Damping coefficient")
+
         group.add_argument("--fric-coeff", action="store",
                            dest="fric_coeff", default=0.5,
                            type=float,
                            help="Friction coefficient")
 
+        add_bool_argument(group, 'non-linear-contact-force', dest='non_linear_contact_force',
+                          default=False,
+                          help='Use nonlinear contact force model')
+
+        add_bool_argument(group, 'linear-contact-force', dest='linear_contact_force',
+                          default=False,
+                          help='Use linear contact force model')
+
+        choices = ['Mohseni', 'Mohseni_Vyas']
+        group.add_argument(
+            "--contact-force-model", action="store",
+            dest='contact_force_model',
+            default="Mohseni_Vyas",
+            choices=choices,
+            help="Contact force model (one of %s)." % choices)
+
     def consume_user_options(self, options):
-        _vars = ['kr', 'kf', 'fric_coeff']
+        _vars = ['kr', 'kf', 'fric_coeff', 'contact_force_model',
+                 'linear_contact_force',
+                 'non_linear_contact_force', 'Cn']
+
         data = dict((var, self._smart_getattr(options, var)) for var in _vars)
         self.configure(**data)
 
@@ -654,22 +710,6 @@ class RigidBody3DScheme(Scheme):
             g5 = []
             for name in self.rigid_bodies:
                 g5.append(
-                    ComputeContactForceNormals(dest=name,
-                                               sources=self.rigid_bodies+self.boundaries))
-
-            stage2.append(Group(equations=g5, real=False))
-
-            g5 = []
-            for name in self.rigid_bodies:
-                g5.append(
-                    ComputeContactForceDistanceAndClosestPoint(
-                        dest=name, sources=self.rigid_bodies+self.boundaries))
-            stage2.append(Group(equations=g5, real=False))
-
-        if len(self.rigid_bodies) > 0:
-            g5 = []
-            for name in self.rigid_bodies:
-                g5.append(
                     BodyForce(dest=name,
                               sources=None,
                               gx=self.gx,
@@ -677,18 +717,81 @@ class RigidBody3DScheme(Scheme):
                               gz=self.gz))
             stage2.append(Group(equations=g5, real=False))
 
-            g5 = []
-            for name in self.rigid_bodies:
-                g5.append(
-                    ComputeContactForce(dest=name,
-                                        sources=None,
-                                        kr=self.kr,
-                                        kf=self.kf,
-                                        fric_coeff=self.fric_coeff))
+        if self.contact_force_model == 'Mohseni':
+            if len(self.rigid_bodies) > 0:
+                g5 = []
+                for name in self.rigid_bodies:
+                    g5.append(
+                        ComputeContactForceNormals(dest=name,
+                                                sources=self.rigid_bodies+self.boundaries))
 
-            stage2.append(Group(equations=g5, real=False))
+                stage2.append(Group(equations=g5, real=False))
 
-            # computation of total force and torque at center of mass
+                g5 = []
+                for name in self.rigid_bodies:
+                    g5.append(
+                        ComputeContactForceDistanceAndClosestPoint(
+                            dest=name, sources=self.rigid_bodies+self.boundaries))
+                stage2.append(Group(equations=g5, real=False))
+
+            if len(self.rigid_bodies) > 0:
+                g5 = []
+                for name in self.rigid_bodies:
+                    g5.append(
+                        ComputeContactForce(dest=name,
+                                            sources=None,
+                                            kr=self.kr,
+                                            kf=self.kf,
+                                            fric_coeff=self.fric_coeff))
+
+                stage2.append(Group(equations=g5, real=False))
+
+        elif self.contact_force_model == 'Mohseni_Vyas':
+            if len(self.rigid_bodies) > 0:
+                g5 = []
+                for name in self.rigid_bodies:
+                    g5.append(
+                        ComputeContactForceNormalsMV(dest=name,
+                                                   sources=self.rigid_bodies+self.boundaries))
+
+                stage2.append(Group(equations=g5, real=False))
+
+                g5 = []
+                for name in self.rigid_bodies:
+                    g5.append(
+                        ComputeContactForceDistanceAndClosestPointAndWeightDenominatorMV(
+                            dest=name, sources=self.rigid_bodies+self.boundaries))
+                stage2.append(Group(equations=g5, real=False))
+
+            if len(self.rigid_bodies) > 0:
+                g5 = []
+                for name in self.rigid_bodies:
+                    if self.linear_contact_force is True:
+                        g5.append(
+                            ComputeContactForceLinearMV(dest=name,
+                                                        sources=None,
+                                                        kr=self.kr,
+                                                        kf=self.kf,
+                                                        fric_coeff=self.fric_coeff))
+                    elif self.non_linear_contact_force is True:
+                        g5.append(
+                            ComputeContactForceNonLinearMV(dest=name,
+                                                           sources=None,
+                                                           Cn=self.Cn,
+                                                           fric_coeff=self.fric_coeff))
+
+                stage2.append(Group(equations=g5, real=False))
+
+            if len(self.rigid_bodies) > 0:
+                g5 = []
+                for name in self.rigid_bodies:
+                    g5.append(
+                        TransferContactForceMV(dest=name,
+                                               sources=self.rigid_bodies))
+
+                stage2.append(Group(equations=g5, real=False))
+        # computation of total force and torque at center of mass
+        if len(self.rigid_bodies) > 0:
             g6 = []
             for name in self.rigid_bodies:
                 g6.append(SumUpExternalForces(dest=name, sources=None))
@@ -742,6 +845,11 @@ class RigidBody3DScheme(Scheme):
                                   'contact_force_normal_z',
                                   'contact_force_normal_wij',
 
+                                  'contact_force_normal_x_source',
+                                  'contact_force_normal_y_source',
+                                  'contact_force_normal_z_source',
+                                  'contact_force_dist_source',
+
                                   'contact_force_normal_tmp_x',
                                   'contact_force_normal_tmp_y',
                                   'contact_force_normal_tmp_z',
@@ -768,7 +876,13 @@ class RigidBody3DScheme(Scheme):
                                   'ti_x',
                                   'ti_y',
                                   'ti_z',
-                                  'closest_point_dist_to_source')
+                                  'closest_point_dist_to_source',
+                                  'contact_force_weight_denominator',
+
+                                  'E_source',
+                                  'nu_source',
+                                  'total_mass_source',
+                                  'radius_vec_dist_source')
 
             add_properties(pa, 'fx', 'fy', 'fz', 'dx0', 'dy0', 'dz0')
 
@@ -887,6 +1001,21 @@ class RigidBody3DScheme(Scheme):
 
         for boundary in self.boundaries:
             pa = pas[boundary]
+
+            nb = 1
+            consts = {
+                'total_mass':
+                np.zeros(nb, dtype=float),
+                'xcm':
+                np.zeros(3 * nb, dtype=float),
+            }
+
+            for key, elem in consts.items():
+                pa.add_constant(key, elem)
+
+            body_id = np.zeros(len(pa.x), dtype=int)
+            pa.add_property('body_id', type='int', data=body_id)
+
             ####################################################
             # compute the boundary particles of the rigid body #
             ####################################################

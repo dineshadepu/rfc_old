@@ -350,7 +350,9 @@ class Qiu2017FallingSolidInWater3D(Application):
     def configure_scheme(self):
         tf = self.tf
 
-        self.scheme.configure_solver(dt=self.dt, tf=tf, pfreq=100)
+        output_at_times = np.array([0., 0.2, 0.3, 0.4])
+        self.scheme.configure_solver(dt=self.dt, tf=tf, pfreq=100,
+                                     output_at_times=output_at_times)
 
     # def post_step(self, solver):
     #     t = solver.t
