@@ -112,20 +112,21 @@ def set_body_frame_normal_vectors(pa):
     pa.normal0[:] = pa.normal[:]
 
 
-class BodyForce(Equation):
-    def __init__(self, dest, sources, gx=0.0, gy=0.0, gz=0.0):
-        self.gx = gx
-        self.gy = gy
-        self.gz = gz
-        super(BodyForce, self).__init__(dest, sources)
-
-    def initialize(self, d_idx, d_m, d_fx, d_fy, d_fz):
-        d_fx[d_idx] = d_m[d_idx] * self.gx
-        d_fy[d_idx] = d_m[d_idx] * self.gy
-        d_fz[d_idx] = d_m[d_idx] * self.gz
+class ResetForce(Equation):
+    def initialize(self, d_idx, d_fx, d_fy, d_fz):
+        d_fx[d_idx] = 0.
+        d_fy[d_idx] = 0.
+        d_fz[d_idx] = 0.
 
 
 class SumUpExternalForces(Equation):
+    def __init__(self, dest, sources,
+                 gx=0.0, gy=0.0, gz=0.0):
+        self.gx = gx
+        self.gy = gy
+        self.gz = gz
+        super(SumUpExternalForces, self).__init__(dest, sources)
+
     def reduce(self, dst, t, dt):
         frc = declare('object')
         trq = declare('object')
@@ -136,6 +137,7 @@ class SumUpExternalForces(Equation):
         y = declare('object')
         z = declare('object')
         xcm = declare('object')
+        total_mass = declare('object')
         body_id = declare('object')
         j = declare('int')
         i = declare('int')
@@ -150,6 +152,7 @@ class SumUpExternalForces(Equation):
         y = dst.y
         z = dst.z
         xcm = dst.xcm
+        total_mass = dst.total_mass
         body_id = dst.body_id
 
         frc[:] = 0
@@ -173,6 +176,13 @@ class SumUpExternalForces(Equation):
             trq[i3] += (dy * fz[j] - dz * fy[j])
             trq[i3 + 1] += (dz * fx[j] - dx * fz[j])
             trq[i3 + 2] += (dx * fy[j] - dy * fx[j])
+
+        # add body force
+        for i in range(max(body_id) + 1):
+            i3 = 3 * i
+            frc[i3] += total_mass[i] * self.gx
+            frc[i3 + 1] += total_mass[i] * self.gy
+            frc[i3 + 2] += total_mass[i] * self.gz
 
 
 def normalize_R_orientation(orien):

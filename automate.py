@@ -845,6 +845,8 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
         self.case_info = {
             'fric_coeff_0_2': (dict(
                 scheme='rb3d',
+                contact_force_model='Mohseni_Vyas',
+                linear_contact_force=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=0.2,
@@ -853,6 +855,8 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
 
             'fric_coeff_0_4': (dict(
                 scheme='rb3d',
+                contact_force_model='Mohseni_Vyas',
+                linear_contact_force=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=0.4,
@@ -861,6 +865,8 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
 
             'fric_coeff_tan_30': (dict(
                 scheme='rb3d',
+                contact_force_model='Mohseni_Vyas',
+                linear_contact_force=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=np.tan(np.pi/6),
@@ -869,6 +875,8 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
 
             'fric_coeff_0_6': (dict(
                 scheme='rb3d',
+                contact_force_model='Mohseni_Vyas',
+                linear_contact_force=None,
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=0.6,
@@ -945,6 +953,8 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
         self.case_info = {
             'fric_coeff_0_2': (dict(
                 scheme='rb3d',
+                contact_force_model='Mohseni_Vyas',
+                linear_contact_force=None,
                 pfreq=500,
                 kr=1e5,
                 fric_coeff=0.2,
@@ -953,6 +963,8 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
 
             'fric_coeff_0_4': (dict(
                 scheme='rb3d',
+                contact_force_model='Mohseni_Vyas',
+                linear_contact_force=None,
                 pfreq=500,
                 kr=1e5,
                 fric_coeff=0.4,
@@ -961,6 +973,8 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
 
             'fric_coeff_tan_30': (dict(
                 scheme='rb3d',
+                contact_force_model='Mohseni_Vyas',
+                linear_contact_force=None,
                 pfreq=500,
                 kr=1e5,
                 fric_coeff=np.tan(np.pi/6),
@@ -969,6 +983,8 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
 
             'fric_coeff_0_6': (dict(
                 scheme='rb3d',
+                contact_force_model='Mohseni_Vyas',
+                linear_contact_force=None,
                 pfreq=500,
                 kr=1e5,
                 fric_coeff=0.6,
@@ -1106,6 +1122,100 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
             figname = os.path.join(self.input_path(name), "time" + str(i) + ".png")
             mlab.savefig(figname)
             # plt.show()
+
+    def move_figures(self):
+        import shutil
+        import os
+
+        for name in self.case_info:
+            source = self.input_path(name)
+
+            target_dir = "manuscript/figures/" + source[8:] + "/"
+            os.makedirs(target_dir)
+            # print(target_dir)
+
+            file_names = os.listdir(source)
+
+            for file_name in file_names:
+                # print(file_name)
+                if file_name.endswith((".jpg", ".pdf", ".png")):
+                    # print(target_dir)
+                    shutil.copy(os.path.join(source, file_name), target_dir)
+
+
+class De2021CylinderRollingOnAnInclinedPlane2d(Problem):
+    """
+    For pure rigid body problems we use RigidBody3DScheme.
+    Scheme used: RigidBody3DScheme
+    """
+    def get_name(self):
+        return 'de_2021_cylinder_rolling_on_an_inclined_plane_2d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/de_2021_cylinder_rolling_on_an_inclined_plane_2d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'fric_coeff_0_3': (dict(
+                scheme='rb3d',
+                contact_force_model='Mohseni_Vyas',
+                linear_contact_force=None,
+                pfreq=300,
+                kr=1e7,
+                kf=1e5,
+                fric_coeff=0.3,
+                tf=0.6,
+                ), r'$\mu=$0.3'),
+
+            'fric_coeff_0_6': (dict(
+                scheme='rb3d',
+                contact_force_model='Mohseni_Vyas',
+                linear_contact_force=None,
+                pfreq=300,
+                kr=1e7,
+                kf=1e5,
+                fric_coeff=0.6,
+                tf=0.6,
+                ), r'$\mu=$0.6'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+        self.plot_velocity()
+        self.move_figures()
+
+    def plot_velocity(self):
+        data = {}
+        for name in self.case_info:
+            data[name] = np.load(self.input_path(name, 'results.npz'))
+
+        for name in self.case_info:
+            t_analytical = data[name]['t_analytical']
+            x_analytical = data[name]['x_analytical']
+
+            t = data[name]['t']
+            x_com = data[name]['x_com']
+
+            plt.plot(t_analytical, x_analytical, label=self.case_info[name][1] + ' analytical')
+            plt.scatter(t, x_com, s=1, label=self.case_info[name][1])
+
+        plt.xlabel('time')
+        plt.ylabel('')
+        plt.legend(prop={'size': 12})
+        # plt.tight_layout(pad=0)
+        plt.savefig(self.output_path('xcom_vs_time.pdf'))
+        plt.clf()
+        plt.close()
 
     def move_figures(self):
         import shutil
@@ -2223,22 +2333,12 @@ if __name__ == '__main__':
         # Current paper problem
         Dinesh2022RigidBodiesCollisionNewtons3rdLawCheck2D,
         Dinesh2022RigidBodiesCollisionNewtons3rdLawCheck3D,
-
-        # Current paper problem
-        Dinesh2022BouncingCube3D,  # tests the coefficient of restitution
-
-        # Current paper problem
+        Amaro2019CollisionBetweenThreeRigidCubes,
         Mohseni2021FreeSlidingOnASlope2D,
         Mohseni2021FreeSlidingOnASlope3D,
-
-        # Current paper problem
-        Amaro2019CollisionBetweenThreeRigidCubes,
-
-        # Current paper problem
         # Mohseni2021ControlledSlidingOnAFlatSurface2D,
         # Mohseni2021ControlledSlidingOnAFlatSurface3D,
-
-        # Current paper problem
+        De2021CylinderRollingOnAnInclinedPlane2d,
         StackOfCylinders2D,  # Experimental validation
 
         # fixme: add figure and validate, you can try 2d case for
@@ -2272,6 +2372,8 @@ if __name__ == '__main__':
         # Dinesh2022MultipleCubesColliding3D,
         # Dinesh2022SteadyCubesOnAWall2D,
         # Dinesh2022SteadyCubesOnAWall3D
+        # Dinesh2022BouncingCube3D,  # tests the coefficient of restitution
+
     ]
 
     automator = Automator(simulation_dir='outputs',

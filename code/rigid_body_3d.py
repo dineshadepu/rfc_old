@@ -25,7 +25,7 @@ from rigid_body_common import (add_properties_stride,
                                set_body_frame_position_vectors,
                                set_body_frame_normal_vectors,
                                set_moment_of_inertia_and_its_inverse,
-                               BodyForce, SumUpExternalForces,
+                               ResetForce, SumUpExternalForces,
                                normalize_R_orientation,
                                ComputeContactForceNormals,
                                ComputeContactForceDistanceAndClosestPoint,
@@ -672,7 +672,7 @@ class RigidBody3DScheme(Scheme):
                           help='Use nonlinear contact force model')
 
         add_bool_argument(group, 'linear-contact-force', dest='linear_contact_force',
-                          default=False,
+                          default=True,
                           help='Use linear contact force model')
 
         choices = ['Mohseni', 'Mohseni_Vyas']
@@ -710,11 +710,7 @@ class RigidBody3DScheme(Scheme):
             g5 = []
             for name in self.rigid_bodies:
                 g5.append(
-                    BodyForce(dest=name,
-                              sources=None,
-                              gx=self.gx,
-                              gy=self.gy,
-                              gz=self.gz))
+                    ResetForce(dest=name, sources=None))
             stage2.append(Group(equations=g5, real=False))
 
         if self.contact_force_model == 'Mohseni':
@@ -794,7 +790,11 @@ class RigidBody3DScheme(Scheme):
         if len(self.rigid_bodies) > 0:
             g6 = []
             for name in self.rigid_bodies:
-                g6.append(SumUpExternalForces(dest=name, sources=None))
+                g6.append(SumUpExternalForces(dest=name,
+                                              sources=None,
+                                              gx=self.gx,
+                                              gy=self.gy,
+                                              gz=self.gz))
 
             stage2.append(Group(equations=g6, real=False))
 

@@ -16,8 +16,7 @@ from pysph.sph.scheme import SchemeChooser
 
 from pysph.base.utils import (get_particle_array)
 
-from rigid_body_3d import RigidBody3DScheme
-from rigid_fluid_coupling import get_files_at_given_times_from_log
+from rigid_body_3d import RigidBody3DScheme, get_files_at_given_times_from_log
 from pysph.sph.equation import Equation, Group
 import os
 
@@ -247,11 +246,11 @@ class Mohseni2021FreeSlidingOnASlope(Application):
                                 m=m,
                                 rho=self.rigid_body_rho,
                                 rad_s=rad_s,
+                                E=69 * 1e9,
+                                nu=0.3,
                                 constants={
-                                    'E': 69 * 1e9,
-                                    'poisson_ratio': 0.3,
                                     'spacing0': self.rigid_body_spacing,
-                                    })
+                                })
 
         add_boundary_identification_properties(pa)
         # make sure your rho is not zero
@@ -289,9 +288,9 @@ class Mohseni2021FreeSlidingOnASlope(Application):
                                         m=m,
                                         rho=self.rigid_body_rho,
                                         rad_s=rad_s,
+                                        E=69 * 1e9,
+                                        nu=0.3,
                                         constants={
-                                            'E': 69 * 1e9,
-                                            'poisson_ratio': 0.3,
                                             'spacing0': self.rigid_body_spacing,
                                         })
         rigid_body.add_property('dem_id', type='int', data=dem_id)
@@ -351,10 +350,9 @@ class Mohseni2021FreeSlidingOnASlope(Application):
                                   rho=self.rigid_body_rho,
                                   rad_s=rad_s,
                                   contact_force_is_boundary=contact_force_is_boundary,
-                                  constants={
-                                      'E': 69 * 1e9,
-                                      'poisson_ratio': 0.3,
-                                  })
+                                  E=69 * 1e9,
+                                  nu=0.3)
+
         wall.add_property('dem_id', type='int', data=max(body_id) + 1)
         # remove particles outside the circle
         indices = []
