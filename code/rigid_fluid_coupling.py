@@ -36,7 +36,7 @@ from rigid_body_common import (add_properties_stride,
                                set_body_frame_position_vectors,
                                set_body_frame_normal_vectors,
                                set_moment_of_inertia_and_its_inverse,
-                               BodyForce, SumUpExternalForces,
+                               ResetForce, SumUpExternalForces,
                                normalize_R_orientation,
                                ComputeContactForceNormals,
                                ComputeContactForceDistanceAndClosestPoint,
@@ -45,7 +45,8 @@ from rigid_body_common import (add_properties_stride,
 from contact_force_mohseni_vyas import (
     ComputeContactForceNormalsMV,
     ComputeContactForceDistanceAndClosestPointAndWeightDenominatorMV,
-    ComputeContactForceMV,
+    ComputeContactForceLinearMV,
+    ComputeContactForceNonLinearMV,
     TransferContactForceMV)
 
 # compute the boundary particles
@@ -240,9 +241,6 @@ class ForceOnRigidBodyDuetoFluid(Equation):
           for both the particle properties.
 
     """
-    def __init__(self, dest, sources):
-        super(ForceOnRigidBodyDuetoFluid, self).__init__(dest, sources)
-
     def loop(self, d_idx, d_m_fsi, d_rho_fsi, d_p_fsi, s_idx, d_fx, d_fy,
              d_fz, DWIJ, s_m, s_p, s_rho):
         _t1 = s_p[s_idx] / (s_rho[s_idx]**2) + d_p_fsi[d_idx] / (d_rho_fsi[d_idx]**2)
@@ -776,58 +774,61 @@ class RigidFluidCouplingScheme(Scheme):
             g5 = []
             for name in self.rigid_bodies:
                 g5.append(
-                    ComputeContactForceNormalsMV(
-                        dest=name,
-                        sources=self.rigid_bodies+self.boundaries))
-
-            stage2.append(Group(equations=g5, real=False))
-
-            g5 = []
-            for name in self.rigid_bodies:
-                g5.append(
-                    ComputeContactForceDistanceAndClosestPointAndWeightDenominatorMV
-                    (dest=name, sources=self.rigid_bodies+self.boundaries))
+                    ResetForce(dest=name, sources=None))
             stage2.append(Group(equations=g5, real=False))
 
         if len(self.rigid_bodies) > 0:
             g5 = []
             for name in self.rigid_bodies:
                 g5.append(
-                    BodyForce(dest=name,
-                              sources=None,
-                              gx=self.gx,
-                              gy=self.gy,
-                              gz=self.gz))
+                    ComputeContactForceNormalsMV(dest=name,
+                                                 sources=self.rigid_bodies+self.boundaries))
+
             stage2.append(Group(equations=g5, real=False))
 
             g5 = []
             for name in self.rigid_bodies:
                 g5.append(
-                    ComputeContactForceMV(
-                        dest=name,
-                        sources=None,
-                        kr=self.kr,
-                        kf=self.kf,
-                        fric_coeff=self.fric_coeff))
+                    ComputeContactForceDistanceAndClosestPointAndWeightDenominatorMV(
+                        dest=name, sources=self.rigid_bodies+self.boundaries))
+            stage2.append(Group(equations=g5, real=False))
+
+        if len(self.rigid_bodies) > 0:
+            g5 = []
+            for name in self.rigid_bodies:
+                g5.append(
+                    ComputeContactForceLinearMV(dest=name,
+                                                sources=None,
+                                                kr=self.kr,
+                                                kf=self.kf,
+                                                fric_coeff=self.fric_coeff))
+
+            stage2.append(Group(equations=g5, real=False))
+
+        if len(self.rigid_bodies) > 0:
+            g5 = []
+            for name in self.rigid_bodies:
+                g5.append(
+                    TransferContactForceMV(dest=name,
+                                           sources=self.rigid_bodies))
+
+            stage2.append(Group(equations=g5, real=False))
 
             # add the force due to fluid
             if len(self.fluids) > 0:
                 for name in self.rigid_bodies:
                     g5.append(ForceOnRigidBodyDuetoFluid(dest=name,
                                                          sources=self.fluids))
-            g5 = []
-            for name in self.rigid_bodies:
-                g5.append(
-                    TransferContactForceMV(
-                        dest=name,
-                        sources=self.rigid_bodies))
 
-            stage2.append(Group(equations=g5, real=False))
-
-            # computation of total force and torque at center of mass
+        # computation of total force and torque at center of mass
+        if len(self.rigid_bodies) > 0 and len(self.rigid_bodies) > 0:
             g6 = []
             for name in self.rigid_bodies:
-                g6.append(SumUpExternalForces(dest=name, sources=None))
+                g6.append(SumUpExternalForces(dest=name,
+                                              sources=None,
+                                              gx=self.gx,
+                                              gy=self.gy,
+                                              gz=self.gz))
 
             stage2.append(Group(equations=g6, real=False))
 
@@ -883,6 +884,11 @@ class RigidFluidCouplingScheme(Scheme):
                                   'contact_force_normal_z',
                                   'contact_force_normal_wij',
 
+                                  'contact_force_normal_x_source',
+                                  'contact_force_normal_y_source',
+                                  'contact_force_normal_z_source',
+                                  'contact_force_dist_source',
+
                                   'contact_force_normal_tmp_x',
                                   'contact_force_normal_tmp_y',
                                   'contact_force_normal_tmp_z',
@@ -910,7 +916,12 @@ class RigidFluidCouplingScheme(Scheme):
                                   'ti_y',
                                   'ti_z',
                                   'closest_point_dist_to_source',
-                                  'contact_force_weight_denominator')
+                                  'contact_force_weight_denominator',
+
+                                  'E_source',
+                                  'nu_source',
+                                  'total_mass_source',
+                                  'radius_vec_dist_source')
 
             add_properties(pa, 'fx', 'fy', 'fz', 'dx0', 'dy0', 'dz0')
 
@@ -1032,6 +1043,21 @@ class RigidFluidCouplingScheme(Scheme):
 
         for boundary in self.boundaries:
             pa = pas[boundary]
+
+            nb = 1
+            consts = {
+                'total_mass':
+                np.zeros(nb, dtype=float),
+                'xcm':
+                np.zeros(3 * nb, dtype=float),
+            }
+
+            for key, elem in consts.items():
+                pa.add_constant(key, elem)
+
+            body_id = np.zeros(len(pa.x), dtype=int)
+            pa.add_property('body_id', type='int', data=body_id)
+
             # Adami boundary conditions. SetWallVelocity
             add_properties(pa, 'ug', 'vf', 'vg', 'wg', 'uf', 'wf', 'wij')
             # pa.add_property('m_fluid')

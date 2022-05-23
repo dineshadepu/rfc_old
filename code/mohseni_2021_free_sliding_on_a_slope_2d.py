@@ -425,7 +425,7 @@ class Mohseni2021FreeSlidingOnASlope(Application):
     def configure_scheme(self):
         tf = self.tf
 
-        output_at_times = np.array([0., 0.5, 1.0, 2.0])
+        output_at_times = np.array([0., 0.5, 1.0])
         self.scheme.configure_solver(dt=self.dt, tf=tf, pfreq=500,
                                      output_at_times=output_at_times)
 
@@ -498,23 +498,22 @@ class Mohseni2021FreeSlidingOnASlope(Application):
         # x amplitude figure
         # ========================
         # generate plots
-        output_files = get_files(fname)
-        output_times = np.array([0., 5 * 1e-1, 1. * 1e-0,  2. * 1e-0])
+        info = self.read_info(fname)
+        output_files = self.output_files
+        output_times = np.array([0., 5 * 1e-1, 1. * 1e-0])
         logfile = os.path.join(os.path.dirname(fname), 'mohseni_2021_free_sliding_on_a_slope_2d.log')
         to_plot = get_files_at_given_times_from_log(output_files, output_times,
                                                     logfile)
 
         for i, f in enumerate(to_plot):
-            print(i, f)
             data = load(f)
             t = data['solver_data']['t']
             body = data['arrays']['rigid_body']
             wall = data['arrays']['wall']
 
             s = 20.
-            # print(_t)
             fig, axs = plt.subplots(1, 1)
-            axs.scatter(body.x, body.y, s=s, c=body.m)
+            axs.scatter(body.x, body.y, s=s, color="orangered")
             # axs.grid()
             axs.set_aspect('equal', 'box')
             # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
@@ -531,7 +530,7 @@ class Mohseni2021FreeSlidingOnASlope(Application):
             wall_y = wall.y[filtr_1]
             wall_m = wall.m[filtr_1]
 
-            tmp = axs.scatter(wall_x, wall_y, s=s, c=wall_m)
+            tmp = axs.scatter(wall_x, wall_y, s=s, color="black")
 
             # save the figure
             figname = os.path.join(os.path.dirname(fname), "time" + str(i) + ".png")
@@ -547,9 +546,8 @@ class Mohseni2021FreeSlidingOnASlope(Application):
             _t = sd['t']
             if _t == 0.:
                 s = 20.
-                # print(_t)
                 fig, axs = plt.subplots(1, 1)
-                axs.scatter(body.x, body.y, s=s, c=body.m)
+                axs.scatter(body.x, body.y, s=s, color="orangered")
                 # axs.grid()
                 axs.set_aspect('equal', 'box')
                 # axs.set_title('still a circle, auto-adjusted data limits', fontsize=10)
@@ -565,7 +563,7 @@ class Mohseni2021FreeSlidingOnASlope(Application):
                 wall_x = wall.x[filtr_1]
                 wall_y = wall.y[filtr_1]
                 wall_m = wall.m[filtr_1]
-                tmp = axs.scatter(wall_x, wall_y, s=s, c=wall_m)
+                tmp = axs.scatter(wall_x, wall_y, s=s, color="black")
                 axs.axis('off')
                 axs.set_xticks([])
                 axs.set_yticks([])

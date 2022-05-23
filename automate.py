@@ -848,9 +848,10 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
                 contact_force_model='Mohseni_Vyas',
                 linear_contact_force=None,
                 pfreq=300,
-                kr=1e5,
+                kr=1e7,
+                kf=1e5,
                 fric_coeff=0.2,
-                tf=3.,
+                tf=1.,
                 ), r'$\mu=$0.2'),
 
             'fric_coeff_0_4': (dict(
@@ -858,9 +859,10 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
                 contact_force_model='Mohseni_Vyas',
                 linear_contact_force=None,
                 pfreq=300,
-                kr=1e5,
+                kr=1e7,
+                kf=1e5,
                 fric_coeff=0.4,
-                tf=3.,
+                tf=1.,
                 ), r'$\mu=$0.4'),
 
             'fric_coeff_tan_30': (dict(
@@ -868,9 +870,10 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
                 contact_force_model='Mohseni_Vyas',
                 linear_contact_force=None,
                 pfreq=300,
-                kr=1e5,
+                kr=1e7,
+                kf=1e5,
                 fric_coeff=np.tan(np.pi/6),
-                tf=3.,
+                tf=1.,
                 ), r'$\mu=$tan(30)'),
 
             'fric_coeff_0_6': (dict(
@@ -878,9 +881,10 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
                 contact_force_model='Mohseni_Vyas',
                 linear_contact_force=None,
                 pfreq=300,
-                kr=1e5,
+                kr=1e7,
+                kf=1e5,
                 fric_coeff=0.6,
-                tf=3.,
+                tf=1.,
                 ), r'$\mu=$0.6'),
         }
 
@@ -1122,6 +1126,66 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
             figname = os.path.join(self.input_path(name), "time" + str(i) + ".png")
             mlab.savefig(figname)
             # plt.show()
+
+    def move_figures(self):
+        import shutil
+        import os
+
+        for name in self.case_info:
+            source = self.input_path(name)
+
+            target_dir = "manuscript/figures/" + source[8:] + "/"
+            os.makedirs(target_dir)
+            # print(target_dir)
+
+            file_names = os.listdir(source)
+
+            for file_name in file_names:
+                # print(file_name)
+                if file_name.endswith((".jpg", ".pdf", ".png")):
+                    # print(target_dir)
+                    shutil.copy(os.path.join(source, file_name), target_dir)
+
+
+class Mohseni2021ControlledSlidingOnAFlatSurface2D(Problem):
+    """
+    For pure rigid body problems we use RigidBody3DScheme.
+    Scheme used: RigidBody3DScheme
+    """
+    def get_name(self):
+        return 'mohseni_2021_controlled_sliding_on_a_flat_surface_2d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/mohseni_2021_controlled_sliding_on_a_flat_surface_2d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'case_1': (dict(
+                scheme='rb3d',
+                contact_force_model='Mohseni_Vyas',
+                linear_contact_force=None,
+                pfreq=100,
+                kr=1e7,
+                kf=1e5,
+                fric_coeff=0.5,
+                tf=1.,
+                detailed=None
+                ), 'Case 1'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+        self.move_figures()
 
     def move_figures(self):
         import shutil
@@ -2331,34 +2395,22 @@ if __name__ == '__main__':
         # Only rigid body problems
         # ========================
         # Current paper problem
-        Dinesh2022RigidBodiesCollisionNewtons3rdLawCheck2D,
-        Dinesh2022RigidBodiesCollisionNewtons3rdLawCheck3D,
-        Amaro2019CollisionBetweenThreeRigidCubes,
-        Mohseni2021FreeSlidingOnASlope2D,
-        Mohseni2021FreeSlidingOnASlope3D,
-        # Mohseni2021ControlledSlidingOnAFlatSurface2D,
-        # Mohseni2021ControlledSlidingOnAFlatSurface3D,
-        De2021CylinderRollingOnAnInclinedPlane2d,
+        Dinesh2022RigidBodiesCollisionNewtons3rdLawCheck2D,  # DEM
+        Dinesh2022RigidBodiesCollisionNewtons3rdLawCheck3D,  # DEM
+        Amaro2019CollisionBetweenThreeRigidCubes,  # DEM
+        Mohseni2021FreeSlidingOnASlope2D,  # DEM
+        Mohseni2021FreeSlidingOnASlope3D,  # DEM
+        Mohseni2021ControlledSlidingOnAFlatSurface2D,  # DEM
+        # Mohseni2021ControlledSlidingOnAFlatSurface3D,  # DEM
+        De2021CylinderRollingOnAnInclinedPlane2d,  # DEM
         StackOfCylinders2D,  # Experimental validation
-
-        # fixme: add figure and validate, you can try 2d case for
-        # simplicity
-        # Current paper problem
-        Qiu2017FallingSolidInWater2D,
-        Qiu2017FallingSolidInWater3D,
-
-        # Current paper problem
-        Qiu2017FloatingSolidInWater2D,
+        Qiu2017FallingSolidInWater2D,  # RFC
+        Qiu2017FallingSolidInWater3D,  # RFC
+        # Qiu2017FloatingSolidInWater2D,  # RFC
         # Qiu2017FloatingSolidInWater3D,
-
-        # Current paper problem
-        Amaro2019DamBreakingFlowHittingOneCube3d,
-
-        # Current paper problem
-        Amaro2019DamBreakingFlowHittingThreeStackedCubes3d,
-
-        # Current paper problem
-        Amaro2019DamBreakingFlowHittingSixStackedCubes3d,
+        Amaro2019DamBreakingFlowHittingOneCube3d,  # RFC
+        Amaro2019DamBreakingFlowHittingThreeStackedCubes3d,  # RFC
+        Amaro2019DamBreakingFlowHittingSixStackedCubes3d,  # RFC
 
         # Current paper problem
         # DineshBouncingParticleOnAWall,
@@ -2373,7 +2425,6 @@ if __name__ == '__main__':
         # Dinesh2022SteadyCubesOnAWall2D,
         # Dinesh2022SteadyCubesOnAWall3D
         # Dinesh2022BouncingCube3D,  # tests the coefficient of restitution
-
     ]
 
     automator = Automator(simulation_dir='outputs',

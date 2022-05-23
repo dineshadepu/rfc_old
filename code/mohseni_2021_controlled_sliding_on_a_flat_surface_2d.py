@@ -16,7 +16,7 @@ from pysph.sph.scheme import SchemeChooser
 
 from pysph.base.utils import (get_particle_array)
 
-from rigid_fluid_coupling import RigidFluidCouplingScheme
+from rigid_body_3d import RigidBody3DScheme, get_files_at_given_times_from_log
 from pysph.sph.equation import Equation, Group
 
 from pysph.tools.geometry import get_2d_block, get_2d_tank, rotate
@@ -239,9 +239,9 @@ class Mohseni2021ControlledSlidingOnAFlatSurface(Application):
                                         m=m,
                                         rho=self.rigid_body_rho,
                                         rad_s=rad_s,
+                                        E=69 * 1e9,
+                                        nu=0.3,
                                         constants={
-                                            'E': 69 * 1e9,
-                                            'poisson_ratio': 0.3,
                                             'spacing0': self.rigid_body_spacing,
                                         })
         rigid_body.add_property('dem_id', type='int', data=dem_id)
@@ -287,10 +287,8 @@ class Mohseni2021ControlledSlidingOnAFlatSurface(Application):
                                   rho=self.rigid_body_rho,
                                   rad_s=rad_s,
                                   contact_force_is_boundary=contact_force_is_boundary,
-                                  constants={
-                                      'E': 69 * 1e9,
-                                      'poisson_ratio': 0.3,
-                                  })
+                                  E=69 * 1e9,
+                                  nu=0.3)
         max_dem_id = max(dem_id)
         wall.add_property('dem_id', type='int', data=max_dem_id + 1)
 
@@ -309,18 +307,14 @@ class Mohseni2021ControlledSlidingOnAFlatSurface(Application):
         return [rigid_body, wall]
 
     def create_scheme(self):
-        rfc = RigidFluidCouplingScheme(rigid_bodies=['rigid_body'],
-                                       fluids=None,
-                                       boundaries=['wall'],
-                                       dim=2,
-                                       rho0=1000.,
-                                       p0=1000 * 100,
-                                       c0=10.,
-                                       gy=self.gy,
-                                       nu=0.,
-                                       h=self.h)
-
-        s = SchemeChooser(default='rfc', rfc=rfc)
+        rb3d = RigidBody3DScheme(rigid_bodies=['rigid_body'],
+                                 boundaries=['wall'],
+                                 gx=0.,
+                                 gy=self.gy,
+                                 gz=0.,
+                                 dim=2,
+                                 fric_coeff=0.5)
+        s = SchemeChooser(default='rb3d', rb3d=rb3d)
         return s
 
     def create_equations(self):
@@ -381,7 +375,7 @@ class Mohseni2021ControlledSlidingOnAFlatSurface(Application):
             f_n.append(-rb.tmp_normal_force[0] * no_frc_idx_fn)
             f_t.append(rb.tmp_tangential_force[0] * no_frc_idx_ft)
 
-        fig, ax1 = plt.subplots()
+        fig, ax1 = plt.subplots(figsize=(12, 10))
 
         ax2 = ax1.twinx()
 
@@ -396,7 +390,7 @@ class Mohseni2021ControlledSlidingOnAFlatSurface(Application):
         ax1.legend()
 
         ax2.set_ylabel('Velocity', color='b')
-        ax2.legend()
+        ax2.legend(loc="lower right")
 
         fig = os.path.join(os.path.dirname(fname), "force_velocity_vs_t.png")
         plt.savefig(fig, dpi=300)

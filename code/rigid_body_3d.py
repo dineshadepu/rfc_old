@@ -74,8 +74,8 @@ class GTVFRigidBody3DStep(IntegratorStep):
             for j in range(3):
                 # using velocity at t, move position
                 # to t + dt/2.
-                dst.vcm[i3 + j] = dst.vcm[i3 + j] + (dtb2 * dst.force[i3 + j] /
-                                                     dst.total_mass[i])
+                dst.acm[i3 + j] = dst.force[i3 + j] / dst.total_mass[i]
+                dst.vcm[i3 + j] = dst.vcm[i3 + j] + (dtb2 * dst.acm[i3 + j])
 
             # move angular velocity to t + dt/2.
             # omega_dot is
@@ -87,8 +87,18 @@ class GTVFRigidBody3DStep(IntegratorStep):
                 dst.inertia_tensor_inverse_global_frame[i9:i9 + 9].reshape(
                     3, 3), dst.ang_mom[i3:i3 + 3])
 
+            # compute the angular acceleration
+            # https://physics.stackexchange.com/questions/688426/compute-angular-acceleration-from-torque-in-3d
+            omega_cross_L = np.cross(dst.omega[i3:i3 + 3],
+                                     dst.ang_mom[i3:i3 + 3])
+            tmp = dst.torque[i3:i3 + 3] - omega_cross_L
+            dst.ang_acc[i3:i3 + 3] = np.matmul(
+                dst.inertia_tensor_inverse_global_frame[i9:i9 + 9].reshape(
+                    3, 3), tmp)
+
     def stage1(self, d_idx, d_x, d_y, d_z, d_u, d_v, d_w, d_dx0, d_dy0, d_dz0,
-               d_xcm, d_vcm, d_R, d_omega, d_body_id, d_is_boundary):
+               d_au, d_av, d_aw, d_xcm, d_vcm, d_acm, d_ang_acc, d_R, d_omega,
+               d_body_id, d_is_boundary):
         # Update the velocities to 1/2. time step
         # some variables to update the positions seamlessly
 
@@ -121,6 +131,18 @@ class GTVFRigidBody3DStep(IntegratorStep):
         d_u[d_idx] = d_vcm[i3 + 0] + du
         d_v[d_idx] = d_vcm[i3 + 1] + dv
         d_w[d_idx] = d_vcm[i3 + 2] + dw
+
+        # for particle acceleration we follow this
+        # https://www.brown.edu/Departments/Engineering/Courses/En4/notes_old/RigidKinematics/rigkin.htm
+        omega_omega_cross_x = d_omega[i3 + 1] * dw - d_omega[i3 + 2] * dv
+        omega_omega_cross_y = d_omega[i3 + 2] * du - d_omega[i3 + 0] * dw
+        omega_omega_cross_z = d_omega[i3 + 0] * dv - d_omega[i3 + 1] * du
+        ang_acc_cross_x = d_ang_acc[i3 + 1] * dz - d_ang_acc[i3 + 2] * dy
+        ang_acc_cross_y = d_ang_acc[i3 + 2] * dx - d_ang_acc[i3 + 0] * dz
+        ang_acc_cross_z = d_ang_acc[i3 + 0] * dy - d_ang_acc[i3 + 1] * dx
+        d_au[d_idx] = d_acm[i3 + 0] + omega_omega_cross_x + ang_acc_cross_x
+        d_av[d_idx] = d_acm[i3 + 1] + omega_omega_cross_y + ang_acc_cross_y
+        d_aw[d_idx] = d_acm[i3 + 2] + omega_omega_cross_z + ang_acc_cross_z
 
     def py_stage2(self, dst, t, dt):
         # move positions to t + dt time step
@@ -204,8 +226,8 @@ class GTVFRigidBody3DStep(IntegratorStep):
             for j in range(3):
                 # using velocity at t, move position
                 # to t + dt/2.
-                dst.vcm[i3 + j] = dst.vcm[i3 + j] + (dtb2 * dst.force[i3 + j] /
-                                                     dst.total_mass[i])
+                dst.acm[i3 + j] = dst.force[i3 + j] / dst.total_mass[i]
+                dst.vcm[i3 + j] = dst.vcm[i3 + j] + (dtb2 * dst.acm[i3 + j])
 
             # move angular velocity to t + dt/2.
             # omega_dot is
@@ -217,8 +239,18 @@ class GTVFRigidBody3DStep(IntegratorStep):
                 dst.inertia_tensor_inverse_global_frame[i9:i9 + 9].reshape(
                     3, 3), dst.ang_mom[i3:i3 + 3])
 
+            # compute the angular acceleration
+            # https://physics.stackexchange.com/questions/688426/compute-angular-acceleration-from-torque-in-3d
+            omega_cross_L = np.cross(dst.omega[i3:i3 + 3],
+                                     dst.ang_mom[i3:i3 + 3])
+            tmp = dst.torque[i3:i3 + 3] - omega_cross_L
+            dst.ang_acc[i3:i3 + 3] = np.matmul(
+                dst.inertia_tensor_inverse_global_frame[i9:i9 + 9].reshape(
+                    3, 3), tmp)
+
     def stage3(self, d_idx, d_x, d_y, d_z, d_u, d_v, d_w, d_dx0, d_dy0, d_dz0,
-               d_xcm, d_vcm, d_R, d_omega, d_body_id, d_is_boundary):
+               d_au, d_av, d_aw, d_xcm, d_vcm, d_acm, d_ang_acc, d_R, d_omega,
+               d_body_id, d_is_boundary):
         # Update the velocities to 1/2. time step
         # some variables to update the positions seamlessly
 
@@ -251,6 +283,18 @@ class GTVFRigidBody3DStep(IntegratorStep):
         d_u[d_idx] = d_vcm[i3 + 0] + du
         d_v[d_idx] = d_vcm[i3 + 1] + dv
         d_w[d_idx] = d_vcm[i3 + 2] + dw
+
+        # for particle acceleration we follow this
+        # https://www.brown.edu/Departments/Engineering/Courses/En4/notes_old/RigidKinematics/rigkin.htm
+        omega_omega_cross_x = d_omega[i3 + 1] * dw - d_omega[i3 + 2] * dv
+        omega_omega_cross_y = d_omega[i3 + 2] * du - d_omega[i3 + 0] * dw
+        omega_omega_cross_z = d_omega[i3 + 0] * dv - d_omega[i3 + 1] * du
+        ang_acc_cross_x = d_ang_acc[i3 + 1] * dz - d_ang_acc[i3 + 2] * dy
+        ang_acc_cross_y = d_ang_acc[i3 + 2] * dx - d_ang_acc[i3 + 0] * dz
+        ang_acc_cross_z = d_ang_acc[i3 + 0] * dy - d_ang_acc[i3 + 1] * dx
+        d_au[d_idx] = d_acm[i3 + 0] + omega_omega_cross_x + ang_acc_cross_x
+        d_av[d_idx] = d_acm[i3 + 1] + omega_omega_cross_y + ang_acc_cross_y
+        d_aw[d_idx] = d_acm[i3 + 2] + omega_omega_cross_z + ang_acc_cross_z
 
 
 class LeapFrogRigidBody3DStep(IntegratorStep):
@@ -922,10 +966,13 @@ class RigidBody3DScheme(Scheme):
                 # torque about the center of mass
                 'torque':
                 np.zeros(3 * nb, dtype=float),
-                # velocity, acceleration of CM.
+                # velocity, of CM.
                 'vcm':
                 np.zeros(3 * nb, dtype=float),
                 'vcm0':
+                np.zeros(3 * nb, dtype=float),
+                # acceleration of CM.
+                'acm':
                 np.zeros(3 * nb, dtype=float),
                 # angular momentum
                 'ang_mom':
@@ -934,6 +981,9 @@ class RigidBody3DScheme(Scheme):
                 np.zeros(3 * nb, dtype=float),
                 # angular velocity in global frame
                 'omega':
+                np.zeros(3 * nb, dtype=float),
+                # angular acceleration in global frame
+                'ang_acc':
                 np.zeros(3 * nb, dtype=float),
                 'omega0':
                 np.zeros(3 * nb, dtype=float),

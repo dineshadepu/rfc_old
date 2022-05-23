@@ -103,52 +103,58 @@ def setup_properties_for_gradual_force(pa):
 
 class Qiu2017FallingSolidInWater2D(Application):
     def initialize(self):
-        self.dim = 2
-        spacing = 2. * 1e-3
-        self.hdx = 1.0
-
-        # the fluid dimensions are
-        # x-dimension (this is in the plane of the paper going right)
+        # ================
+        # fluid dimensions
+        # ================
         self.fluid_length = 150. * 1e-3
-        # y-dimension (this goes into the paper)
         self.fluid_height = 131 * 1e-3
-
         self.fluid_density = 1000.0
-        self.fluid_spacing = spacing
+        # ======================
+        # fluid dimensions ends
+        # ======================
 
+        # ================
+        # tank dimensions
+        # ================
         self.tank_length = 150. * 1e-3
         self.tank_height = 140 * 1e-3
-        self.tank_spacing = spacing
         self.tank_layers = 3
+        # ======================
+        # tank dimensions ends
+        # ======================
 
-        # x dimension
+        # =======================
+        # rigid body dimensions
+        # =======================
         self.rigid_body_length = 20. * 1e-3
-        # y dimension
         self.rigid_body_height = 20. * 1e-3
-        self.rigid_body_spacing = spacing
         self.rigid_body_rho = 2120
+        # ===========================
+        # rigid body dimensions ends
+        # ===========================
 
-        self.h = self.hdx * self.fluid_spacing
+        # =====================
+        # parameters for solver
+        # =====================
+        self.dim = 2
+        self.spacing = 2. * 1e-3
+        self.hdx = 1.0
+        self.h = self.hdx * self.spacing
 
-        # self.solid_rho = 500
-        # self.m = 1000 * self.dx * self.dx
+        # fluid solver parameters
         self.co = 10 * np.sqrt(2 * 9.81 * self.fluid_height)
         self.p0 = self.fluid_density * self.co**2.
-        self.c0 = self.co
-        # fixme: why is it blowing up with higher alpha
         self.alpha = 0.5
+
+        # basic parameters
         self.gx = 0.
         self.gy = -9.81
         self.gz = 0.
-        self.dim = 2
-
         # solver data
         self.tf = 0.5
-        self.dt = 0.25 * self.fluid_spacing * self.hdx / (self.c0 * 1.1)
-
-        # Rigid body collision related data
-        self.limit = 6
-        self.seval = None
+        self.dt = 0.25 * self.spacing * self.hdx / (self.co * 1.1)
+        # parameters for solver ends
+        # ==========================
 
     def add_user_options(self, group):
         group.add_argument("--dx",
@@ -159,19 +165,14 @@ class Qiu2017FallingSolidInWater2D(Application):
                            help="Spacing between particles")
 
     def consume_user_options(self):
-        spacing = self.options.dx
-        self.fluid_spacing = spacing
-        self.tank_spacing = spacing
-        self.rigid_body_spacing = spacing
-
-        # update h
-        self.h = self.hdx * self.fluid_spacing
+        self.spacing = self.options.dx
+        self.h = self.hdx * self.spacing
 
     def create_rigid_body(self):
         x = np.array([])
         y = np.array([])
 
-        x, y = get_2d_block(dx=self.rigid_body_spacing,
+        x, y = get_2d_block(dx=self.spacing,
                             length=self.rigid_body_length,
                             height=self.rigid_body_height)
 
@@ -190,9 +191,9 @@ class Qiu2017FallingSolidInWater2D(Application):
         # create a row of six cylinders
         x, y, body_id = self.create_rigid_body()
 
-        m = self.rigid_body_rho * self.rigid_body_spacing**self.dim
+        m = self.rigid_body_rho * self.spacing**self.dim
         h = self.h
-        rad_s = self.rigid_body_spacing / 2.
+        rad_s = self.spacing / 2.
         pa = get_particle_array(name='pa',
                                 x=x,
                                 y=y,
@@ -200,11 +201,11 @@ class Qiu2017FallingSolidInWater2D(Application):
                                 m=m,
                                 rho=self.rigid_body_rho,
                                 rad_s=rad_s,
+                                E=69 * 1e9,
+                                nu=0.3,
                                 constants={
-                                    'E': 69 * 1e9,
-                                    'poisson_ratio': 0.3,
-                                    'spacing0': self.rigid_body_spacing,
-                                    })
+                                    'spacing0': self.spacing,
+                                })
 
         add_boundary_identification_properties(pa)
         # make sure your rho is not zero
@@ -225,16 +226,18 @@ class Qiu2017FallingSolidInWater2D(Application):
         return is_boundary
 
     def create_particles(self):
-
         xf, yf, xt, yt = hydrostatic_tank_2d(
             fluid_length=self.fluid_length,
             fluid_height=self.fluid_height,
             tank_height=self.tank_height,
             tank_layers=self.tank_layers,
-            fluid_spacing=self.fluid_spacing,
-            tank_spacing=self.tank_spacing)
+            fluid_spacing=self.spacing,
+            tank_spacing=self.spacing)
 
-        m_fluid = self.fluid_density * self.fluid_spacing**self.dim
+        # ==============================
+        # Create fluid particle array
+        # ==============================
+        m_fluid = self.fluid_density * self.spacing**self.dim
 
         fluid = get_particle_array(x=xf,
                                    y=yf,
@@ -244,17 +247,18 @@ class Qiu2017FallingSolidInWater2D(Application):
                                    name="fluid")
         # set the initial pressure
         fluid.p[:] = - self.fluid_density * self.gy * (max(fluid.y) - fluid.y[:])
+        # ===================================
+        # Create fluid particle array ends
+        # ===================================
 
-        # =============================
-        # Create a rigid body
-        # =============================
-        # get bodyid for each rigid_body
+        # =========================================
+        # Create rigid body particle array
+        # =========================================
         xc, yc, body_id = self.create_rigid_body()
-
         dem_id = body_id
-        m = self.rigid_body_rho * self.rigid_body_spacing**self.dim
+        m = self.rigid_body_rho * self.spacing**self.dim
         h = self.h
-        rad_s = self.rigid_body_spacing / 2.
+        rad_s = self.spacing / 2.
         rigid_body = get_particle_array(name='rigid_body',
                                         x=xc,
                                         y=yc,
@@ -262,40 +266,39 @@ class Qiu2017FallingSolidInWater2D(Application):
                                         m=m,
                                         rho=self.rigid_body_rho,
                                         rad_s=rad_s,
+                                        E=69 * 1e9,
+                                        nu=0.3,
                                         constants={
-                                            'E': 69 * 1e9,
-                                            'poisson_ratio': 0.3,
-                                            'spacing0': self.rigid_body_spacing,
+                                            'spacing0': self.spacing,
                                         })
         rigid_body.add_property('dem_id', type='int', data=dem_id)
         rigid_body.add_property('body_id', type='int', data=body_id)
         rigid_body.add_constant('max_tng_contacts_limit', 10)
         rigid_body.add_constant('total_no_bodies', 2)
         rigid_body.y[:] += max(fluid.y) - min(rigid_body.y) - self.rigid_body_height/2.
+        # =========================================
+        # Create rigid body particle array ends
+        # =========================================
 
-        # =============================
-        # End creation of rigid body
-        # =============================
+        # ===========================
+        # Create tank particle array
+        # ===========================
         tank = get_particle_array(x=xt,
                                   y=yt,
                                   m=m_fluid,
                                   m_fluid=m_fluid,
                                   h=self.h,
                                   rho=self.fluid_density,
-                                  rad_s=self.fluid_spacing/2.,
+                                  rad_s=self.spacing/2.,
                                   contact_force_is_boundary=1.,
                                   name="tank",
-                                  constants={
-                                      'E': 21 * 1e10,
-                                      'poisson_ratio': 0.3,
-                                  })
+                                  E=69 * 1e9,
+                                  nu=0.3)
+
         tank.add_property('dem_id', type='int', data=1)
-
-        # # Translate the tank and fluid so that fluid starts at 0
-        # min_xf = abs(np.min(xf))
-
-        # fluid.x += min_xf
-        # tank.x += min_xf
+        # =================================
+        # Create tank particle array ends
+        # =================================
 
         self.scheme.setup_properties([fluid, tank, rigid_body])
 
@@ -306,12 +309,12 @@ class Qiu2017FallingSolidInWater2D(Application):
         rigid_body.is_boundary[:] = is_boundary[:]
 
         # Add the rigid fluid coupling properties to the rigid body
-        rigid_body.m_fsi[:] = self.fluid_density * self.rigid_body_spacing**self.dim
+        rigid_body.m_fsi[:] = self.fluid_density * self.spacing**self.dim
         rigid_body.rho_fsi[:] = 1000.
 
         # Remove the fluid particles
         G.remove_overlap_particles(
-            fluid, rigid_body, self.rigid_body_spacing, dim=self.dim
+            fluid, rigid_body, self.spacing, dim=self.dim
         )
 
         # self.scheme.scheme.set_linear_velocity(
@@ -326,7 +329,7 @@ class Qiu2017FallingSolidInWater2D(Application):
                                        dim=self.dim,
                                        rho0=self.fluid_density,
                                        p0=self.p0,
-                                       c0=self.c0,
+                                       c0=self.co,
                                        gx=self.gx,
                                        gy=self.gy,
                                        gz=self.gz,
@@ -378,7 +381,8 @@ class Qiu2017FallingSolidInWater2D(Application):
         from matplotlib.patches import Rectangle
         from pysph.solver.utils import load, get_files
 
-        output_files = get_files(os.path.dirname(fname))
+        info = self.read_info(fname)
+        output_files = self.output_files
 
         from pysph.solver.utils import iter_output
 
