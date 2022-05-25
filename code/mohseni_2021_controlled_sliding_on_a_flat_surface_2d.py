@@ -17,6 +17,7 @@ from pysph.sph.scheme import SchemeChooser
 from pysph.base.utils import (get_particle_array)
 
 from rigid_body_3d import RigidBody3DScheme, get_files_at_given_times_from_log
+from rigid_fluid_coupling import RigidFluidCouplingScheme
 from pysph.sph.equation import Equation, Group
 
 from pysph.tools.geometry import get_2d_block, get_2d_tank, rotate
@@ -314,7 +315,21 @@ class Mohseni2021ControlledSlidingOnAFlatSurface(Application):
                                  gz=0.,
                                  dim=2,
                                  fric_coeff=0.5)
-        s = SchemeChooser(default='rb3d', rb3d=rb3d)
+
+        rfc = RigidFluidCouplingScheme(rigid_bodies=['rigid_body'],
+                                       fluids=None,
+                                       boundaries=['wall'],
+                                       dim=self.dim,
+                                       rho0=1000.,
+                                       p0=1e6,
+                                       c0=30.,
+                                       gx=0.,
+                                       gy=0.,
+                                       gz=0.,
+                                       nu=0.,
+                                       alpha=0.5,
+                                       h=self.h)
+        s = SchemeChooser(default='rb3d', rb3d=rb3d, rfc=rfc)
         return s
 
     def create_equations(self):

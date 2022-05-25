@@ -18,6 +18,7 @@ from pysph.examples.rigid_body.sphere_in_vessel_akinci import (create_boundary,
                                                                create_fluid,
                                                                create_sphere)
 from pysph.tools.geometry import get_3d_block
+import os
 
 
 class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
@@ -219,9 +220,9 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
                                   rho=self.body_density,
                                   m_fluid=m_fluid,
                                   rad_s=self.body_spacing / 2.,
+                                  E=69 * 1e9,
+                                  nu=0.3,
                                   constants={
-                                      'E': 69 * 1e9,
-                                      'poisson_ratio': 0.3,
                                       'spacing0': self.body_spacing,
                                   })
         body.y[:] += self.body_height * 2.
@@ -247,10 +248,8 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
                                   m=m,
                                   rho=self.fluid_density,
                                   rad_s=rad_s,
-                                  constants={
-                                      'E': 69 * 1e9,
-                                      'poisson_ratio': 0.3,
-                                  })
+                                  E=69 * 1e9,
+                                  nu=0.3)
         max_dem_id = max(dem_id)
         tank.add_property('dem_id', type='int', data=max_dem_id + 1)
 
@@ -268,11 +267,10 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
                                   rho=self.fluid_density,
                                   rad_s=self.fluid_spacing/2.,
                                   name="wall",
-                                  constants={
-                                      'E': 21 * 1e10,
-                                      'poisson_ratio': 0.3,
-                                  })
+                                  E=69 * 1e9,
+                                  nu=0.3)
         wall.add_property('dem_id', type='int', data=2)
+        wall.y[:] += 5. * self.fluid_spacing
 
         # ==================================================
         # create fluid
@@ -301,7 +299,7 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
         body.z[:] -= min(body.z) - min(fluid.z)
         body.z[:] += 0.275
 
-        self.scheme.setup_properties([body, tank, fluid])
+        self.scheme.setup_properties([body, tank, fluid, wall])
 
         # reset the boundary particles, this is due to improper boundary
         # particle identification by the setup properties
@@ -343,7 +341,7 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
     def configure_scheme(self):
         dt = 1e-4
         print("DT: %s" % dt)
-        tf = 0.5
+        tf = 1.8
 
         self.scheme.configure_solver(dt=dt, tf=tf, pfreq=100)
 
@@ -351,7 +349,7 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
         dt = solver.dt
         for pa in self.particles:
             if pa.name == 'wall':
-                pa.y += 0.11 * dt
+                pa.y += 1.9 * dt
 
     def customize_output(self):
         self._mayavi_config('''
@@ -363,8 +361,100 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Application):
             b.point_size = 0.1
         ''')
 
+    def post_process(self, fname):
+        import matplotlib.pyplot as plt
+        from matplotlib.patches import Rectangle
+        from pysph.solver.utils import load, get_files
+        from pysph.solver.utils import iter_output
+
+        info = self.read_info(fname)
+        output_files = self.output_files
+
+        data = load(output_files[0])
+        arrays = data['arrays']
+        fluid = arrays['fluid']
+        max_x_fluid = max(fluid.x)
+
+        t, x_com, y_com = [], [], []
+
+        for sd, rb in iter_output(output_files[::1], 'body'):
+            _t = sd['t']
+            t.append(_t)
+            x_com.append(rb.xcm[6] - max_x_fluid)
+            y_com.append(rb.xcm[7])
+
+        path = os.path.abspath(__file__)
+        directory = os.path.dirname(path)
+        # experimental data (read from file)
+        # load the data
+        data_x_vs_t_exp_canelas_2016 = np.loadtxt(
+            os.path.join(directory, 'amaro_2019_dam_breaking_flow_hitting_three_stacked_cubes_3d_Canelas_exp_x_vs_t.csv'),
+            delimiter=',')
+        t_x_exp, x_cm_exp = data_x_vs_t_exp_canelas_2016[:, 0], data_x_vs_t_exp_canelas_2016[:, 1]
+
+        data_x_vs_t_dpdem_li_liu_2022 = np.loadtxt(
+            os.path.join(directory, 'amaro_2019_dam_breaking_flow_hitting_three_stacked_cubes_3d_Lu_Liu_dpdem_eisph_x_vs_t.csv'),
+            delimiter=',')
+        t_x_dpdem, x_cm_dpdem = data_x_vs_t_dpdem_li_liu_2022[:, 0], data_x_vs_t_dpdem_li_liu_2022[:, 1]
+
+        data_y_vs_t_exp_canelas_2016 = np.loadtxt(
+            os.path.join(directory, 'amaro_2019_dam_breaking_flow_hitting_three_stacked_cubes_3d_Canelas_exp_y_vs_t.csv'),
+            delimiter=',')
+        t_y_exp, y_cm_exp = data_y_vs_t_exp_canelas_2016[:, 0], data_y_vs_t_exp_canelas_2016[:, 1]
+
+        data_y_vs_t_dpdem_li_liu_2022 = np.loadtxt(
+            os.path.join(directory, 'amaro_2019_dam_breaking_flow_hitting_three_stacked_cubes_3d_Lu_Liu_dpdem_eisph_y_vs_t.csv'),
+            delimiter=',')
+        t_y_dpdem, y_cm_dpdem = data_y_vs_t_dpdem_li_liu_2022[:, 0], data_y_vs_t_dpdem_li_liu_2022[:, 1]
+
+        if 'info' in fname:
+            res = os.path.join(os.path.dirname(fname), "results.npz")
+        else:
+            res = os.path.join(fname, "results.npz")
+
+        np.savez(res,
+                 t=t,
+                 x_com=x_com,
+
+                 t_x_exp=t_x_exp,
+                 x_cm_exp=x_cm_exp,
+
+                 t_x_dpdem=t_x_dpdem,
+                 x_cm_dpdem=x_cm_dpdem,
+
+                 t_y_exp=t_y_exp,
+                 y_cm_exp=y_cm_exp,
+
+                 t_y_dpdem=t_y_dpdem,
+                 y_cm_dpdem=y_cm_dpdem)
+
+        plt.clf()
+        plt.plot(t, x_com, "^-", label='Simulated')
+        plt.plot(t_x_exp, x_cm_exp, "--", label='Canelas experiment')
+        plt.plot(t_x_dpdem, x_cm_dpdem, "--", label='DPDEM')
+
+        plt.title('x-center of mass')
+        plt.xlabel('t')
+        plt.ylabel('x-center of mass (m)')
+        plt.legend()
+        fig = os.path.join(os.path.dirname(fname), "xcom_vs_time.png")
+        plt.savefig(fig, dpi=300)
+
+        # ==================================================
+        plt.clf()
+        plt.plot(t, y_com, "^-", label='Simulated')
+        plt.plot(t_y_exp, y_cm_exp, "--", label='Canelas experiment')
+        plt.plot(t_y_dpdem, y_cm_dpdem, "--", label='DPDEM')
+
+        plt.title('y-center of mass')
+        plt.xlabel('t')
+        plt.ylabel('y-center of mass (m)')
+        plt.legend()
+        fig = os.path.join(os.path.dirname(fname), "ycom_vs_time.png")
+        plt.savefig(fig, dpi=300)
+
 
 if __name__ == '__main__':
     app = Amaro2019DamBreakingFlowHittingThreeStackedCubes3d()
     app.run()
-    # app.post_process(app.info_filename)
+    app.post_process(app.info_filename)

@@ -711,14 +711,6 @@ class RigidBody3DScheme(Scheme):
                            type=float,
                            help="Friction coefficient")
 
-        add_bool_argument(group, 'non-linear-contact-force', dest='non_linear_contact_force',
-                          default=False,
-                          help='Use nonlinear contact force model')
-
-        add_bool_argument(group, 'linear-contact-force', dest='linear_contact_force',
-                          default=True,
-                          help='Use linear contact force model')
-
         choices = ['Mohseni', 'Mohseni_Vyas']
         group.add_argument(
             "--contact-force-model", action="store",
@@ -728,9 +720,9 @@ class RigidBody3DScheme(Scheme):
             help="Contact force model (one of %s)." % choices)
 
     def consume_user_options(self, options):
-        _vars = ['kr', 'kf', 'fric_coeff', 'contact_force_model',
-                 'linear_contact_force',
-                 'non_linear_contact_force', 'Cn']
+        _vars = ['kr', 'kf', 'fric_coeff',
+                 'contact_force_model',
+                 'Cn']
 
         data = dict((var, self._smart_getattr(options, var)) for var in _vars)
         self.configure(**data)
@@ -806,19 +798,12 @@ class RigidBody3DScheme(Scheme):
             if len(self.rigid_bodies) > 0:
                 g5 = []
                 for name in self.rigid_bodies:
-                    if self.linear_contact_force is True:
-                        g5.append(
-                            ComputeContactForceLinearMV(dest=name,
-                                                        sources=None,
-                                                        kr=self.kr,
-                                                        kf=self.kf,
-                                                        fric_coeff=self.fric_coeff))
-                    elif self.non_linear_contact_force is True:
-                        g5.append(
-                            ComputeContactForceNonLinearMV(dest=name,
-                                                           sources=None,
-                                                           Cn=self.Cn,
-                                                           fric_coeff=self.fric_coeff))
+                    g5.append(
+                        ComputeContactForceLinearMV(dest=name,
+                                                    sources=None,
+                                                    kr=self.kr,
+                                                    kf=self.kf,
+                                                    fric_coeff=self.fric_coeff))
 
                 stage2.append(Group(equations=g5, real=False))
 

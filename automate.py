@@ -307,7 +307,6 @@ class Amaro2019CollisionBetweenThreeRigidCubes(Problem):
             'Mohseni_Vyas': (dict(
                 kr=1e5,
                 fric_coeff=0.0,
-                contact_force_model='Mohseni_Vyas',
                 ), 'Mohseni Vyas'),
         }
 
@@ -361,9 +360,7 @@ class StackOfCylinders2D(Problem):
 
             'Mohseni_Vyas': (dict(
                 pfreq=200,
-                contact_force_model='Mohseni_Vyas',
                 timestep=5e-5,
-                linear_contact_force=None,
                 kr=1e5,
                 kf=1e3,
                 fric_coeff=0.45,
@@ -845,8 +842,6 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
         self.case_info = {
             'fric_coeff_0_2': (dict(
                 scheme='rb3d',
-                contact_force_model='Mohseni_Vyas',
-                linear_contact_force=None,
                 pfreq=300,
                 kr=1e7,
                 kf=1e5,
@@ -856,8 +851,6 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
 
             'fric_coeff_0_4': (dict(
                 scheme='rb3d',
-                contact_force_model='Mohseni_Vyas',
-                linear_contact_force=None,
                 pfreq=300,
                 kr=1e7,
                 kf=1e5,
@@ -867,8 +860,6 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
 
             'fric_coeff_tan_30': (dict(
                 scheme='rb3d',
-                contact_force_model='Mohseni_Vyas',
-                linear_contact_force=None,
                 pfreq=300,
                 kr=1e7,
                 kf=1e5,
@@ -878,8 +869,6 @@ class Mohseni2021FreeSlidingOnASlope2D(Problem):
 
             'fric_coeff_0_6': (dict(
                 scheme='rb3d',
-                contact_force_model='Mohseni_Vyas',
-                linear_contact_force=None,
                 pfreq=300,
                 kr=1e7,
                 kf=1e5,
@@ -957,8 +946,6 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
         self.case_info = {
             'fric_coeff_0_2': (dict(
                 scheme='rb3d',
-                contact_force_model='Mohseni_Vyas',
-                linear_contact_force=None,
                 pfreq=500,
                 kr=1e5,
                 fric_coeff=0.2,
@@ -967,8 +954,6 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
 
             'fric_coeff_0_4': (dict(
                 scheme='rb3d',
-                contact_force_model='Mohseni_Vyas',
-                linear_contact_force=None,
                 pfreq=500,
                 kr=1e5,
                 fric_coeff=0.4,
@@ -977,8 +962,6 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
 
             'fric_coeff_tan_30': (dict(
                 scheme='rb3d',
-                contact_force_model='Mohseni_Vyas',
-                linear_contact_force=None,
                 pfreq=500,
                 kr=1e5,
                 fric_coeff=np.tan(np.pi/6),
@@ -987,8 +970,6 @@ class Mohseni2021FreeSlidingOnASlope3D(Problem):
 
             'fric_coeff_0_6': (dict(
                 scheme='rb3d',
-                contact_force_model='Mohseni_Vyas',
-                linear_contact_force=None,
                 pfreq=500,
                 kr=1e5,
                 fric_coeff=0.6,
@@ -1164,8 +1145,6 @@ class Mohseni2021ControlledSlidingOnAFlatSurface2D(Problem):
         self.case_info = {
             'case_1': (dict(
                 scheme='rb3d',
-                contact_force_model='Mohseni_Vyas',
-                linear_contact_force=None,
                 pfreq=100,
                 kr=1e7,
                 kf=1e5,
@@ -1173,6 +1152,16 @@ class Mohseni2021ControlledSlidingOnAFlatSurface2D(Problem):
                 tf=1.,
                 detailed=None
                 ), 'Case 1'),
+
+            'rfc': (dict(
+                scheme='rfc',
+                pfreq=100,
+                kr=1e7,
+                kf=1e5,
+                fric_coeff=0.5,
+                tf=1.,
+                detailed=None
+                ), 'rfc'),
         }
 
         self.cases = [
@@ -1224,8 +1213,6 @@ class De2021CylinderRollingOnAnInclinedPlane2d(Problem):
         self.case_info = {
             'fric_coeff_0_3': (dict(
                 scheme='rb3d',
-                contact_force_model='Mohseni_Vyas',
-                linear_contact_force=None,
                 pfreq=300,
                 kr=1e7,
                 kf=1e5,
@@ -1235,8 +1222,6 @@ class De2021CylinderRollingOnAnInclinedPlane2d(Problem):
 
             'fric_coeff_0_6': (dict(
                 scheme='rb3d',
-                contact_force_model='Mohseni_Vyas',
-                linear_contact_force=None,
                 pfreq=300,
                 kr=1e7,
                 kf=1e5,
@@ -1951,8 +1936,8 @@ class Amaro2019DamBreakingFlowHittingOneCube3d(Problem):
                 pfreq=300,
                 kr=1e5,
                 # This has to be fixed. Friction coefficient between different bodies
-                fric_coeff=0.2,
-                tf=3.,
+                fric_coeff=0.05,
+                tf=1.8,
                 ), 'case 1'),
         }
 
@@ -1984,8 +1969,8 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Problem):
                 pfreq=300,
                 kr=1e5,
                 # This has to be fixed. Friction coefficient between different bodies
-                fric_coeff=0.2,
-                tf=3.5,
+                fric_coeff=0.05,
+                tf=1.8,
                 ), 'case 1'),
         }
 
@@ -2015,10 +2000,9 @@ class Amaro2019DamBreakingFlowHittingSixStackedCubes3d(Problem):
             'case_1': (dict(
                 scheme='rfc',
                 pfreq=300,
-                kr=1e7,
-                # This has to be fixed. Friction coefficient between different bodies
-                fric_coeff=0.2,
-                tf=2.,
+                kr=1e5,
+                fric_coeff=0.05,
+                tf=1.8,
                 ), 'case 1'),
         }
 

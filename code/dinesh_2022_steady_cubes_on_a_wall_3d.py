@@ -304,9 +304,9 @@ class Dinesh2022SteadyCubesOnAWall3D(Application):
                                   rho=self.body_density,
                                   m_fluid=m_fluid,
                                   rad_s=self.body_spacing / 2.,
+                                  E=69 * 1e9,
+                                  nu=0.3,
                                   constants={
-                                      'E': 69 * 1e9,
-                                      'poisson_ratio': 0.3,
                                       'spacing0': self.body_spacing,
                                   })
         body.y[:] += self.body_height * 2.
@@ -332,10 +332,8 @@ class Dinesh2022SteadyCubesOnAWall3D(Application):
                                   m=m,
                                   rho=self.body_density,
                                   rad_s=rad_s,
-                                  constants={
-                                      'E': 69 * 1e9,
-                                      'poisson_ratio': 0.3,
-                                  })
+                                  E=69 * 1e9,
+                                  nu=0.3)
         max_dem_id = max(dem_id)
         tank.add_property('dem_id', type='int', data=max_dem_id + 1)
 
