@@ -339,15 +339,17 @@ class Amaro2019DamBreakingFlowHittingSixStackedCubes3d(Application):
         data = load(output_files[0])
         arrays = data['arrays']
         fluid = arrays['fluid']
+        body = arrays['body']
         max_x_fluid = max(fluid.x)
+        min_y_body = abs(min(body.y))
 
         t, x_com, y_com = [], [], []
 
         for sd, rb in iter_output(output_files[::1], 'body'):
             _t = sd['t']
             t.append(_t)
-            x_com.append(rb.xcm[16] - max_x_fluid)
-            y_com.append(rb.xcm[17])
+            x_com.append(rb.xcm[15] - max_x_fluid)
+            y_com.append(rb.xcm[16] + min_y_body)
 
         path = os.path.abspath(__file__)
         directory = os.path.dirname(path)
@@ -423,4 +425,4 @@ class Amaro2019DamBreakingFlowHittingSixStackedCubes3d(Application):
 if __name__ == '__main__':
     app = Amaro2019DamBreakingFlowHittingSixStackedCubes3d()
     app.run()
-    # app.post_process(app.info_filename)
+    app.post_process(app.info_filename)
