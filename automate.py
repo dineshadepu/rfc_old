@@ -1951,6 +1951,26 @@ class Amaro2019DamBreakingFlowHittingOneCube3d(Problem):
 
     def run(self):
         self.make_output_dir()
+        self.move_figures()
+
+    def move_figures(self):
+        import shutil
+        import os
+
+        for name in self.case_info:
+            source = self.input_path(name)
+
+            target_dir = "manuscript/figures/" + source[8:] + "/"
+            os.makedirs(target_dir)
+            # print(target_dir)
+
+            file_names = os.listdir(source)
+
+            for file_name in file_names:
+                # print(file_name)
+                if file_name.endswith((".jpg", ".pdf", ".png")):
+                    # print(target_dir)
+                    shutil.copy(os.path.join(source, file_name), target_dir)
 
 
 class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Problem):
@@ -1984,6 +2004,26 @@ class Amaro2019DamBreakingFlowHittingThreeStackedCubes3d(Problem):
 
     def run(self):
         self.make_output_dir()
+        self.move_figures()
+
+    def move_figures(self):
+        import shutil
+        import os
+
+        for name in self.case_info:
+            source = self.input_path(name)
+
+            target_dir = "manuscript/figures/" + source[8:] + "/"
+            os.makedirs(target_dir)
+            # print(target_dir)
+
+            file_names = os.listdir(source)
+
+            for file_name in file_names:
+                # print(file_name)
+                if file_name.endswith((".jpg", ".pdf", ".png")):
+                    # print(target_dir)
+                    shutil.copy(os.path.join(source, file_name), target_dir)
 
 
 class Amaro2019DamBreakingFlowHittingSixStackedCubes3d(Problem):
@@ -2016,6 +2056,26 @@ class Amaro2019DamBreakingFlowHittingSixStackedCubes3d(Problem):
 
     def run(self):
         self.make_output_dir()
+        self.move_figures()
+
+    def move_figures(self):
+        import shutil
+        import os
+
+        for name in self.case_info:
+            source = self.input_path(name)
+
+            target_dir = "manuscript/figures/" + source[8:] + "/"
+            os.makedirs(target_dir)
+            # print(target_dir)
+
+            file_names = os.listdir(source)
+
+            for file_name in file_names:
+                # print(file_name)
+                if file_name.endswith((".jpg", ".pdf", ".png")):
+                    # print(target_dir)
+                    shutil.copy(os.path.join(source, file_name), target_dir)
 
 
 class Dinesh2022ParticleBouncingOnAWall2D(Problem):
