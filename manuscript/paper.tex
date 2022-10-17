@@ -13,6 +13,8 @@
 \usepackage[noend]{algpseudocode}
 \usepackage[section]{placeins}
 \usepackage{booktabs}
+\usepackage{physics}
+\usepackage{breqn}
 
 % For the TODOs
 \usepackage{xcolor}
@@ -76,32 +78,88 @@
 
 \section{Introduction}
 \label{sec:intro}
-\begin{itemize}
-\item Rigid bodies in fluid flows in nature. Where can we find them? What kind
-  of problems do they give rise to? Ice-Sea? Debris?
-\item Why is it hard to model rigid fluid coupling? Then we say numerically
-  nonlinear, and this is how it is been into handled. Many different ways RFC
-  is been modeled, this includes mesh based and messless. Explain in a good
-  detail what meshless methods are out there which handles these problems.
-  This includes SPH too. (Same as next point)
-\item \todoin{Done} Describe some works where Rigid fluid coupling is handled
-  in meshless methods. MPS-DEM, SPH-DEM and other ways, recently Asai. (Same
-  as previous point)
-\item Explain SPH history and its applications in different areas. Now SPH
-  specifically applied in RFC area. Detail some papers where how differently
-  fluid is modelled, this includes ISPH, WCSPH, TVF, delta+ SPH. Also mention
-  the latest multiphase flow, where air is considered, then mention the
-  adaptive formulation, where the author captures the cavity.
-\item \todoin{Done} Similarly explain the many ways the rigid-rigid coupling is been
-  handled. Detail how non-smooth boundaries are handled.
-\item \todoin{Done} Explain what we are going to do in the current work. We adapt the
-  Mohseni formulation to handle the non-smooth boundaries, we also incorporate
-  the damping, and extend the formulation to 3d and simulate 3d problems.
-\item Explain the examples. 3d Sliding case, 3d controlled sliding case, body
-  falling in water, then 3d dam break over dynamics rigid obstacles.
-% \item Mention the open source software which provide SPH formulation (there are 2.)
-\end{itemize}
 
+Arbitrary shaped rigid bodies in fluid flows in nature. Debris flowing,
+particle transport chemical industries, food processing, in natural hazard
+where the bodies are capable of doing catastrophic damage while being
+sedimented. In ice-sea modeling. Study of such physics is hard to model, as
+the two-way coupling is nonlinear. Many different models were proposed to
+handle the current physics.
+
+
+In meshless methods, MPS-DEM \cite{guo2017numerical} and SPH-DEM
+\cite{canelas2016sph} are two ways of modeling the physics. Where Moving
+Particle Semi-implicit (MPS) method and smoothed particle hydrodynamics (SPH)
+are utilized to study the fluid dynamics, while the Discrete Element Method
+(DEM) is used to model the interaction among the rigid bodies and finally both
+SPH and MPS are coupled with the rigid bodies to handle the two way coupling.
+In addition to DEM alone to model the rigid-rigid interaction, there are also
+works where SPH \cite{amicarelli2015smoothed} itself is used to model the
+interaction. But it lacks to incorporate the friction between the bodies. In
+the current work we have used SPH to model the fluid dynamics.
+
+
+The SPH method is a meshless numerical method originally proposed by
+\citet{monaghan-gingold-stars-mnras-77} and \citet{lucy1977numerical} to model
+astrophysics problems. It is fairly success in modeling physics ranging
+different fields, \citet{monaghan-review:2005} provides a detailed review of
+SPH and its applications. structural dynamics, FSI, fracture to note a few.
+SPH has been extensively applied to model the dynamics of fluid in two way
+rigid fluid coupling. There are several SPH variants in which the fluid flow
+can be modeled. \citet{canelas2016sph} uses WCSPH in rigid fluid coupling in
+modeling two way rigid fluid coupling, ISPH is used in \cite{asai2021fluid},
+delta sph in \cite{lyu20223d}. Multiphase flow, where air is considered, to
+capture the cavity while the rigid body enters the water section is modeled in
+\cite{lyu2021study}. A TVF scheme is currently proposed where the particle
+shifting is introduced for better particle distribution leading to less errors
+is not yet utilized in modeling the rigid fluid coupling.
+
+
+All the works above are using DEM to model the rigid-rigid interaction doesn't
+consider the shape of the body and fails to model bodies with arbitrary shape.
+One of the reasons is the contact force model is between two particles, and
+those particles are assumed as spheres and the contact handling is taken care.
+This doesn't consider the shape of the surface of the rigid body in place.
+Irregular bodies are modeled using many different variations now, one of the
+methods is by overlapped sphere method \cite{das2007modeling}, SMR-DEM by
+\citet{zhan2021surface}, dilated polyhedral DEM \citet{liu2020new}, Fourier
+series-based discrete element method \citet{lai2020fourier}, non-smooth wall
+modeling by \citet{amaro2019improvement}, GJK-DEM \cite{wachs2012grains3d},
+discrete function representation based DEM \cite{lu2012critical}, level set
+DEM method \cite{duriez2021precision}. However, these are complicated to
+implement and not particle friendly and the rigid bodies have to discretized
+differently to handle the non-smooth boundaries. In the current work we have
+extended the contact force model proposed by \citet{mohseni2021particle} to
+handle three dimensional problems, we also incorporate the damping model.
+
+
+In the current work, we propose a new method to handle the collision between
+arbitrary shaped rigid bodies. Unlike the approach of Mohseni, the proposed
+contact force model is less sensitive to the primary secondary body selection.
+And the proposed method is robust and very simple to implement when compared
+with the existing techniques (cite zhang, Amaro) in the literature. The
+current model tries to eliminate the confusion in choosing the primary and
+secondary body in a collision instance. The rigid fluid coupling between CTVF
+is new. We explored different rigid fluid coupling strategies by simulating
+high density ratio simulations. Several examples are simulated to validate the
+current scheme, ranging from simulations compared with FEM, analytical results
+as well as experimental. Finally, in the interest of reproducibility and
+easier ability for researchers to build on this work, our code is open source
+and can be found at \url{https://gitlab.com/pypr/rfc}. We used automan package
+\cite{automan2018} to automate all the results generated in the current
+manuscript.
+
+
+Numerical examples, collision of three cubes is initially used to test the
+conservation property of the current contact mode while dealing with
+non-smooth boundaries. Further, a free and forced sliding of a 3d cube on a
+frictional inclined plane, and a rolling cylinder whose analytical solutions
+exists are utilised to validate the rigid-rigid contact model frictional
+model. A granular collapse of a stack of cylinders is modeled and compared
+against the experimental results. In order to validate the two-way rigid fluid
+coupled scheme a rigid circular body falling in a steady tank is simulated.
+Complex interactions of fluid in a 3D dam breaking with multiple rigid bodies,
+is studied and compared with the experimental results of SPH-DCDEM.
 
 \textbf{Random points to be included later}.
 \begin{itemize}
@@ -122,38 +180,6 @@
 \end{itemize}
 
 
-\textbf{1st bullet point of introduction}. Irregular bodies are modeled using
-many different variations now, one of the methods is by overlapped sphere
-method \cite{das2007modeling}, SMR-DEM by \citet{zhan2021surface}, dilated
-polyhedral DEM \citet{liu2020new}, Fourier series-based discrete element
-method \citet{lai2020fourier}, non-smooth wall modeling by
-\citet{amaro2019improvement}, GJK-DEM, DFR-DEM. In the current work we have
-extended the contact force model proposed by \citet{mohseni2021particle} to
-handle three dimensional problems, we also incorporate the damping model.
-
-
-\textbf{5th bullet point of introduction}. Irregular bodies are modeled using
-many different variations now, one of the methods is by overlapped sphere
-method \cite{das2007modeling}, SMR-DEM by \citet{zhan2021surface}, dilated
-polyhedral DEM \citet{liu2020new}, Fourier series-based discrete element
-method \citet{lai2020fourier}, non-smooth wall modeling by
-\citet{amaro2019improvement}, GJK-DEM, DFR-DEM. In the current work we have
-extended the contact force model proposed by \citet{mohseni2021particle} to
-handle three dimensional problems, we also incorporate the damping model.
-
-
-\textbf{6th bullet point of introduction}. Numerical examples, collision of
-three cubes is initially used to test the conservation property of the current
-contact mode while dealing with non-smooth boundaries. Further, a free and
-forced sliding of a 3d cube on a frictional inclined plane, and a rolling
-cylinder whose analytical solutions exists are utilised to validate the
-rigid-rigid contact model frictional model. A granular collapse of a stack of
-cylinders is modeled and compared against the experimental results. In order
-to validate the two-way rigid fluid coupled scheme a rigid circular body
-falling in a steady tank is simulated. Complex interactions of fluid in a 3D
-dam breaking with multiple rigid bodies, is studied and compared with the
-experimental results of SPH-DCDEM.
-
 
 \FloatBarrier%
 \section{Fluid dynamics}
@@ -161,68 +187,8 @@ experimental results of SPH-DCDEM.
 
 \todoin{Connor FSI}
 
-The mass and momentum conservation laws that govern the dynamics of fluid motion are given in Lagrangian form by:
-\begin{equation}
-  \label{eq:ce}
-  \frac{d \rho}{d t} = - \rho \; \frac{\partial u_i}{\partial x_i},
-\end{equation}
-\begin{equation}
-  \label{eq:me}
-  \frac{d u_i}{d t} = \frac{1}{\rho} \; \frac{\partial \sigma_{ij}}{\partial x_j}
-  + g_i,
-\end{equation}
-where $\rho$ is the density, $u_i$ is the $i$\textsuperscript{th} component of
-the velocity field, $x_j$ is the $j$\textsuperscript{th} component of the
-position vector, $g_i$ is the component of body force per unit mass. And $\frac{d}{d t}$ is
-\begin{equation}
-  \label{eq:material-derivative}
-  \frac{d}{d t} = \frac{\partial }{\partial t} +
-  {u}_j \frac{\partial }{\partial x_j}.
-\end{equation}
-
-
-Following CTVF formulation, and moving the particles with transport velocity,
-we have the modified material derivative as
-\begin{equation}
-  \label{eq:modified-material-derivative}
-  \frac{\tilde{d} }{d t} = \frac{\partial }{\partial t} +
-  \tilde{u}_j \frac{\partial }{\partial x_j}.
-\end{equation}
-
-The adjust equations for the modified derivative are given by:
-
-\begin{equation}
-  \label{eq:ce-tvf}
-  \frac{\tilde{d} \rho}{d t} =
-  - \rho \frac{\partial \tilde{u}_j}{\partial x_j} +
-  \frac{\partial (\rho (\tilde{u}_j - u_j))}{\partial x_j}.
-\end{equation}
-\begin{equation}
-  \label{eq:mom-tvf}
-  \frac{\tilde{d} u_i}{d t} =
-  \frac{\partial}{\partial x_j} (u_i (\tilde{u}_j - u_j))
-  - u_i \frac{\partial}{\partial x_j} (\tilde{u}_j - u_j)
-  + g_i
-  +\frac{1}{\rho} \frac{\partial \sigma_{ij}}{\partial x_j}.
-\end{equation}
-
-For a weakly-compressible or incompressible fluid, a viscous force is added:
-\begin{equation}
-  \label{eq:fluid-stress-decomposition}
-  \sigma_{ij} = - p \delta_{ij} + 2 \eta \frac{\partial u_i}{\partial x_j}
-\end{equation}
-where $\eta$ is the kinematic viscosity of the fluid.
-
-In both fluid and solid modelling the pressure is computed using an
-isothermal equation of state, given as,
-\begin{equation}
-  \label{eq:pressure-equation}
-  p = K \bigg(\frac{\rho}{\rho_{0}} - 1 \bigg),
-\end{equation}
-where $K = \rho_{0} c_0^2$ is the bulk modulus. Here, the constants $c_0$ and
-$\rho_0$ are the reference speed of sound and density, respectively. For solids,
-$c_0$ is computed as $\sqrt{\frac{E}{3 (1 - 2 \nu)\rho_{0}}}$, $\nu$ is the
-Poisson ratio.
+\subsection{Governing equations}
+\label{sec:governing-eqns-fluid-dynamics}
 
 SPH discretization of the modified governing equations are given by:
 \begin{equation}
@@ -235,205 +201,172 @@ SPH discretization of the modified governing equations are given by:
 \begin{multline}
   \label{eq:sph-momentum-fluid}
   \frac{\tilde{d}\ten{u}_{a}}{dt} = - \sum_{b} m_b \bigg[
-  \bigg(\frac{p_a}{\rho_a^2} + \frac{p_b}{\rho_b^2}\bigg) \ten{I} -
-  \bigg(\frac{\ten{A}_a}{\rho_a^2} + \frac{\ten{A}_b}{\rho_b^2}
-  \bigg) \bigg]
-  \cdot \nabla_{a} W_{ab} \\
-  + \ten{u}_{a} \sum_{b} \frac{m_b}{\rho_{b}} \; \tilde{\ten{u}}_{ab} \cdot
-  \nabla_{a} W_{ab} + \sum_{b} m_b \frac{4 \eta \nabla W_{ab}\cdot
+  \bigg(\frac{p_a}{\rho_a^2} + \frac{p_b}{\rho_b^2}\bigg) \ten{I}
+   \bigg]
+  \cdot \nabla_{a} W_{ab} + \\
+  \sum_{b} m_b \frac{4 \eta \nabla W_{ab}\cdot
     \ten{r}_{ab}}{(\rho_a + \rho_b) (r_{ab}^2 + 0.01 h_{ab}^2)} \ten{u}_{ab} +
   \ten{g}_{a},
 \end{multline}
-The particles in the current scheme are moved with the transport velocity,
-\begin{equation}
-  \label{eq:transport_velocity_position_derivative}
-  \frac{d\ten{r}_a}{dt} = \ten{\tilde{u}}_a.
-\end{equation}
-%
-The transport velocity is updated using,
-\begin{equation}
-  \label{eq:transport_velocity}
-  \ten{\tilde{u}}_a(t + \Delta t) =\ten{u}_a(t) + \Delta t \; \frac{\tilde{d} \ten{u}_a}{dt} +
-  \bigg(\frac{d \ten{u}_{a}}{dt}\bigg)_{\text{c}} \Delta t,
-\end{equation}
-where $\ten{A}_a = \rho_a \ten{u}_a \otimes (\ten{\tilde{u}}_a - \ten{u}_a)$,
-$\ten{I}$ is the identity matrix, $\eta$ is the kinematic viscosity of the
-fluid and \citet{morris1997modeling} formulation is used to discretize the
-viscosity term.
-\begin{itemize}
-\item Discuss about the homogenization force (We use GTVf).
-\item Describe $\Pi_{ij}$ for numerical stability.
-\item And other terms.
-\end{itemize}
-We add to the momentum equation an additional artificial viscosity term
-$\Pi_{ab}$~\cite{monaghan-review:2005} to maintain the stability of the
-numerical scheme, given as,
-\begin{align}
-  \label{eq:mom-av}
-  \Pi_{ab} =
-  \begin{cases}
-\frac{-\alpha h_{ab} \bar{c}_{ab} \phi_{ab}}{\bar{\rho}_{ab}}
-  & \ten{u}_{ab}\cdot \ten{r}_{ab} < 0, \\
-  0 & \ten{u}_{ab}\cdot \ten{r}_{ab} \ge 0,
-\end{cases}
-\end{align}
-where,
-%
-\begin{equation}
-  \label{eq:av-phiij}
-  \phi_{ab} = \frac{\ten{u}_{ab} \cdot \ten{r}_{ab}}{r^2_{ab} + 0.01 h^2_{ab}},
-\end{equation}
-%
-where $\ten{r}_{ab} = \ten{r}_a - \ten{r}_b$, $\ten{u}_{ab} = \ten{u}_a -
-\ten{u}_b$, $h_{ab} = (h_a + h_b)/2$, $\bar{\rho}_{ab} = (\rho_a + \rho_b)/2$,
-$\bar{c}_{ab} = (c_a + c_b) / 2$, and $\alpha$ is the artificial
-viscosity parameter.
-
-%
-where $\big(\frac{d \ten{u}_a}{dt}\big)_{\text{c}}$ is the homogenization
-acceleration which ensures that the particle positions are homogeneous.
 
 
-\subsection{Boundary conditions}
-
-The ghost particle approach of \citet{Adami2012} is used to model the
-boundaries. We use three layers of ghost particles to model the solid wall.
-The properties of the solid wall are interpolated from the fluid particles.
-
-When computing the divergence of the velocity field on fluid particles, we
-enforce a no-penetration boundary condition and not a no-slip boundary
-condition. The velocity of the fluid is projected onto the ghost particles
-using,
-\begin{equation}
-  \label{eq:v-ghost}
-  \ten{\hat{u}}_a = \frac{\sum_b\ten{u}_b W_{ab}}{\sum_b W_{ab}},
-\end{equation}
-\begin{equation}
-  \label{eq:v-hat-ghost}
-  \ten{\check{u}}_a = \frac{\sum_b\tilde{\ten{u}}_b W_{ab}}{\sum_b W_{ab}},
-\end{equation}
-where $\ten{u}_b$, $\ten{\tilde{u}}_b$ are the momentum and transport velocity
-of the fluid respectively and $W_{ab}$ is the kernel value between the fluid
-particle and the ghost particle.
-
-The normal component of this projected velocity is then reflected and set as
-the ghost particle velocity,
-\begin{equation}
-  \label{eq:free-slip-bc-u}
-  \ten{u}_{\text{Ga}} = 2 \ten{\hat{n}}((\ten{u}_{\text{p}} - \ten{\hat{u}}_{\text{a}})\cdot \ten{\hat{n}}) + \ten{\hat{u}}_{\text{a}},
-\end{equation}
-where $\ten{u}_{\text{p}}$ is the local velocity of the boundary and
-$\ten{\hat{n}}$ is the unit normal to the boundary particle $a$. Similarly the
-transport velocity of the ghost particle is set as,
-\begin{equation}
-  \label{eq:free-slip-bc-u}
-  \tilde{\ten{u}}_{\text{Gi}} = 2 \ten{\hat{n}}((\ten{u}_{\text{p}} - \ten{\check{u}}_{\text{i}})\cdot \ten{\hat{n}}) + \ten{\check{u}}_{\text{i}},
-\end{equation}
-
-When the viscous force is computed, the no slip boundary condition is used,
-where the velocity on the boundary set as,
-\begin{equation}
-  \label{eq:no-slip-bc-u}
-  \ten{u}_{\text{Ga}} = 2 \ten{u}_{\text{p}} - \ten{\hat{u}}_{\text{a}},
-\end{equation}
-a similar form is used for the transport velocity here too,
-\begin{equation}
-  \label{eq:no-slip-bc-uhat}
-  \tilde{\ten{u}}_{\text{Ga}} = 2 \ten{u}_{\text{p}} - \ten{\check{u}}_{\text{a}}.
-\end{equation}
-
-The pressure of the boundary particle is extrapolated from its surrounding
-fluid particles by the following equation,
-\begin{equation}
-  \label{eq:pressure-bc}
-  p_w = \frac{\Sigma_f p_f W_{wf} + (\ten{g} - \ten{a}_{\ten{w}}) \cdot \Sigma_f
-    \rho_f \ten{r}_{wf} W_{wf}}{\Sigma_f W_{wf}},
-\end{equation}
-where $\ten{a}_w$ is the acceleration of the wall. The subscript $f$ denotes
-the fluid particles and $w$ denotes the wall particles.
-
-
-\begin{itemize}
-\item Choose the timestep
-\end{itemize}
+\newpage
+~\newpage
+~\newpage
 
 
 \FloatBarrier%
 \section{Rigid body dynamics}
 \label{sec:rbd}
 
-% check \cite{natsui2018sph}
+\newpage
+~\newpage
+The rigid body is discretized into particles with equal spacing each particle
+with mass $m_i$ and density $\rho_i$. Rigid body has a total 6 degrees of
+freedom (DOF), divided into $3$ translational and $3$ rotational.
 
-The state of a rigid body is defined by position of center of mass, velocity
-of center of mass, a rotation matrix to define the three rotational degrees of
-freedom and angular velocity.
+The state of the rigid body at a given time (t) can described using position
+and velocity of the center of mass ($\ten{x}_{cm}$), velocity of center of
+mass ($\ten{v}_{cm}$), a rotation matrix ($\ten{R}$), to define the three
+rotational degrees of freedom and angular velocity($\teng{\omega}$). The
+center of mass is computed with
+\begin{equation}
+  \label{eq:center_of_mass}
+  \ten{x}_{cm} = \frac{\sum_i m_i \; \ten{x}_{i} }{\sum_i m_i }
+\end{equation}
 
 The equations governing the dynamics of rigid body are, balance of linear and
 angular momentum given by,
-
 \begin{equation}
   \label{eq:balance_linear_mom}
-  \frac{d \; (M \ten{v}_{cm})}{d t} = \sum_i \ten{F}_i
+  \frac{d \; (M \ten{v}_{cm})}{d t} = \sum_i \ten{F}_i,
 \end{equation}
-
 \begin{equation}
   \label{eq:balance_angular_mom}
   \frac{d \ten{L}}{d t} = \teng{\tau}_{cm}
 \end{equation}
-
-where $\teng{\tau}_i$ is the torque about center of mass due to forces on the
+where $\teng{\tau}_{cm}$ is the torque about center of mass due to forces on the
 particles,
-
 \begin{equation}
   \label{eq:torque}
   \teng{\tau}_{cm} = \sum_i \ten{F}_i \times (\ten{r}_{cm} - \ten{r}_{i})
 \end{equation}
-
-The angular momentum and the center of mass velocity of the body is updated by following
-
+and $\ten{L}$ is the angular momentum of the rigid body about center of mass,
+computed as
 \begin{equation}
-  \label{eq:ang_mom_update}
-  \ten{x}_{cm} = \ten{x}_{cm} + \frac{\ten{F}_{cm}}{M} \; \Delta t
+  \label{eq:moi}
+  \teng{L} =
+  \sum_i \; \ten{r}_i \times \; (\ten{\omega} \times \ten{r}_i)
+  = \sum_i \; m_i \; [(\ten{r} \cdot \ten{r}) \ten{I} - \ten{r} \otimes \ten{r}]
+\end{equation}
+\begin{equation}
+  \label{eq:omega_compute}
+  \teng{\omega} = \textit{\teng{I}}^{-1} \; \ten{L}
 \end{equation}
 
 
+The state of the rigid body at next time step is evolved through the
+integration of governing \cref{eq:balance_linear_mom,eq:balance_angular_mom},
+finding the linear velocity of the center of mass $\ten{v}_{cm}$ and angular
+momentum $\ten{L}$ at the next timestep as,
 \begin{equation}
-  \label{eq:ang_mom_update}
-  \ten{L} = \ten{L} + \teng{\tau}_{cm} \; \Delta t
+  \label{eq:lin_pos_cm_update}
+  \ten{x}_{cm}^{n+1} = \ten{x}_{cm}^{n} + \ten{v}_{cm}^{n} \; \Delta t
 \end{equation}
-
-
+\begin{equation}
+  \label{eq:lin_vel_cm_update}
+  \ten{v}_{cm}^{n+1} = \ten{v}_{cm}^{n} + \frac{\ten{F}_{cm}}{M} \; \Delta t
+\end{equation}
+ The orientation $\ten{R}$ is updated as,
 \begin{equation}
   \label{eq:rotation_update}
-  \ten{R} = \ten{R} + \tilde{\teng{\omega}} \, \ten{R} \; \Delta t
+  \ten{R}^{n+1} = \ten{R}^{n} + \tilde{\teng{\omega}}^{n} \, \ten{R}^{n} \; \Delta t
 \end{equation}
-
-
+\begin{equation}
+  \label{eq:ang_mom_update}
+  \ten{L}^{n+1} = \ten{L}^{n} + \teng{\tau}_{cm} \; \Delta t
+\end{equation}
+Moment of inertia at the new time step is computed as
 \begin{equation}
   \label{eq:moi_update}
-  \ten{I}^{-1} = \ten{R} \hat{\ten{I}}^{-1} \ten{R}^T
+  (\textit{\teng{I}}^{-1})^{n+1} = \ten{R}^{n+1} \textit{\teng{\overline{I}}}^{-1} (\ten{R}^{n+1})^T
 \end{equation}
-
-
+The angular velocity at the new time step is computed with
 \begin{equation}
-  \label{eq:moi_update}
-  \teng{\omega} = \ten{I}^{-1} \; \ten{L}
+  \label{eq:ang_velocity_update}
+  \teng{\omega}^{n+1} = (\textit{\teng{I}}^{-1})^{n+1} \; \ten{L}^{n+1}.
 \end{equation}
-
-Particles update
-
-
+The position and velocity of the particles of the rigid body are updated by
 \begin{equation}
   \label{eq:rb_particle_pos_update}
-  \ten{x}_i(t) = \ten{x}_{cm}(t) + \ten{R}(t) \; \hat{\ten{r}}_{i}(t)
+  \ten{r}_i = \ten{R} \cdot \overline{\ten{r}}_{i}
 \end{equation}
-
-
+\begin{equation}
+  \label{eq:rb_particle_pos_update}
+  \ten{x}_i = \ten{x}_{cm} + \ten{r}_{i}
+\end{equation}
 \begin{equation}
   \label{eq:rb_particle_vel_update}
-  \ten{v}_i(t) = \ten{v}_{cm}(t) + \teng{\omega}(t) \; \ten{r}_{i}(t)
+  \ten{v}_i = \ten{v}_{cm} + \teng{\omega} \times \ten{r}_{i}
 \end{equation}
 
+
+% check \cite{natsui2018sph}
+We use two coordinate frames to capture the dynamics of the rigid body. The
+body fixed frame, which moves with rigid body is located always at the center
+of mass ($\ten{x}_{cm}$) of the body, computed as
+
+
+A body fixed coordinate system is put at the center of mass, and it translates
+and rotates with the body. The discretized particle's position vector is
+constant about this body fixed coordinate frame. Figure x shows the rigid body
+at an instant, the position vector of particle $\ten{x}_i$ about global frame
+is computed as
+\begin{equation}
+  \label{eq:global_position_vector_idea}
+  \ten{x}_{i} = \ten{x}_{cm} + \ten{r}_i = \ten{x}_{cm} + \text{Rot}(\overline{\ten{r}}_i)
+\end{equation}
+where,
+\begin{equation}
+  \label{eq:body_position_vector}
+  \overline{\ten{r}}_i = \ten{x}_i(0) - \ten{x}_{cm}(0)
+\end{equation}
+
+A 3$\times$3 rotation matrix is utilized to represent the orientation of the
+body fixed coordinate frame, representing 3 degrees of freedom.
+\begin{equation}
+  \label{eq:rotation_matrix}
+  \ten{A} = \mqty(\ten{a}_{1} & \ten{a}_{2} & \ten{a}_{3})
+\end{equation}
+where, each column $\ten{a}_{1}$, $\ten{a}_{1}$, $\ten{a}_{1}$ represents the
+body frame coordinate axes unit vectors in global frame. With which the
+position vector of the particle in local frame is translated to the global frame as,
+\begin{equation}
+  \label{eq:local_to_gloabl_translate}
+  \ten{r}_i = \ten{A} \; \overline{\ten{r}}_i.
+\end{equation}
+
+\begin{figure}[!htpb]
+  \centering
+  % \includegraphics[width=1.0\textwidth]{images/contact_force/contact_force_description}
+  \caption{2d description of local to global vector translation}
+\label{fig:local_to_global_2d_explanation}
+\end{figure}
+Rotation matrix $\ten{A}$ has to be orthogonal, with determinant equal to $1$
+and finally the magnitude of the eigenvalues is needed to be $1$. The position
+of a body point $i$, can be written as
+\begin{equation}
+  \label{eq:global_position_vector}
+  \ten{x}_{i} = \ten{x}_{cm} + \ten{A}(\overline{\ten{r}}_i)
+\end{equation}
+
+The state of the rigid body can be described by
+\begin{equation}
+  \label{eq:rotation_matrix}
+  state = \mqty(\ten{x}_{cm} & \ten{A} & \ten{v}_{cm} & \ten{\omega})
+\end{equation}
+\newpage
+~\newpage
 
 \FloatBarrier%
 \section{Rigid fluid coupling}
@@ -444,33 +377,179 @@ assume the particles of rigid body to be dummy and consider a hydrodynamic
 mass attach to it. A three layers of particles are expected on the rigid body
 and the force acting on the fluid due to the
 
-\begin{multline}
+\begin{equation}
   \label{eq:force_on_fluid_due_to_rb}
   \frac{\tilde{d}\ten{u}_{a}}{dt} =  \sum_{b} m^0_b \bigg[
   \bigg(\frac{p_a}{\rho_a^2} + \frac{p_b}{\rho_b^2}\bigg) \ten{I}\bigg) \bigg]
   \cdot \nabla_{a} W_{ab}
-\end{multline}
+\end{equation}
 
-\begin{multline}
+\begin{equation}
   \label{eq:force_on_fluid_due_to_rb}
   f_i =  m_a \sum_{b} m_b \bigg[
   \bigg(\frac{p_a}{\rho_a^2} + \frac{p_b}{\rho_b^2}\bigg) \ten{I}\bigg) \bigg]
   \cdot \nabla_{a} W_{ab}
-\end{multline}
+\end{equation}
 
 
 The pressure on the rigid body is computed using the Adami boundary condition.
 Similarly we set no slip velocity condition for the computation of viscous
 force computation.
 
+\newpage
+~\newpage
+~\newpage
 
 \FloatBarrier%
-\section{Collision between rigid bodies}
-\label{sec:contact-force}
+\section{Contact algorithm}
+\label{sec:contact-algorithm}
+\todoin{\citet{chen2019coupled} has damping model. Also he mentioned the parameters
+required in stack of cylinders example.}
 
-\citet{chen2019coupled} has damping model. Also he mentioned the parameters
-required in stack of cylinders example.
+\begin{figure}[!htpb]
+  \centering
+  \includegraphics[width=1.0\textwidth]{images/contact_force/contact_force_description}
+  \caption{Contact force description}
+\label{fig:contact_foce_description}
+\end{figure}
+In the current work we have utilized the contact force model proposed by
+\citet{mohseni2021particle}. The force acting on a particle $i$ of body A due
+to the interaction with the particles of body $B$ can be resolved into a
+normal and tangential component. Where, normal force component is utilised to
+make sure that the particles of different body don't penetrate into each
+other, while the tangential component is used to model the friction between
+the interacting solids. According to \citet{mohseni2021particle}, we divide the
+bodies under interaction into primary and secondary bodies, as shown in
+\cref{fig:contact_foce_description}.
+% In usual DEM to compute the force on particle i of body A, the force is
+% computed by considering the overlap of particle i with each and every
+% particle of body j by considering the particle j to be spherical. This leads
+% to unphysical modeling of contact force when the body is interacting with a
+% flat surface or surfaces which are not spherical by nature. The current
+% contact force is surface aware. The force on particle $i$ is computed by
+% equation
+The normal force ($\teng{F}_i^{n}$) on
+particle $i$ due to the interaction with the particles $j$ of body $B$ is
+computed as,
+\begin{equation}
+  \label{eq:contact-algorithm-normal}
+  \ten{F}_i = K_r \delta_{n}^{i} \ten{n}_i.
+\end{equation}
+Here, the overlap $\delta_{n}$ is computed using
+\begin{equation}
+  \label{eq:cf-distance-computation}
+  d_i = \frac{
+    \displaystyle\sum\limits_{j = 1}^{\text{NP}^{b}} \;
+    \big( \ten{n}_i \cdot \ten{x}_{ij} \big)  \frac{m_j}{\rho_j} W_{ij}}
+  {
+    \displaystyle\sum\limits_{j = 1}^{\text{NP}^{b}} \;
+    \frac{m_j}{\rho_j} W_{ij}}.
+\end{equation}
 
+The overlap is computed by $\delta_{n}^{i}$
+\begin{equation}
+  \label{eq:cf-overlap}
+  \delta_{n}^{i} = \Delta x - d_i,
+\end{equation}
+where $\Delta x$ is the initial spacing between the particles. Note that while
+computing the overlap of particle $i$ with the body $B$, we have computed an
+effective overlap, rather than per particle interaction. This effectively is
+able to model the interaction between non smooth surfaces, contrast from
+particle particle force computation.
+
+We associate a tangential spring attached to particle $i$ and body $B$ to
+compute the tangential force, which initially has a magnitude of zero
+($|\Delta \textit{\textbf{l}}_i|=0$). And the tangential spring is activated
+when the particle comes into contact with body $B$, which is conformed by
+\cref{eq:cf-overlap}. The tangential force is history-dependent. The contact
+friction force is proportional to the tangential spring displacement, which is
+integrated over the contact time as
+\begin{equation}
+  \label{eq:tangential-force}
+  \ten{F}_{i}^{t^{n+1}} =
+  -k_f \Delta \textit{\textbf{l}}_i^{\,n + 1} =
+  -k_f \big[\big(\Delta {\textit{\textbf{l}}}_i^{\,n} \
+  + \ten{v}_{ij}^{n + 1} \Delta t\big) \cdot \ten{t}_i^{n + 1} \big] \
+  \ten{t}_i^{n + 1},
+\end{equation}
+where $\Delta t$ is the time step, $\ten{v}_{ij} = \ten{v}_{i} - \ten{v}_j$ is
+the relative velocity of the primary particle $i$ with respect to the
+secondary particle $j$. The tangential unit vector is computed by,
+\begin{equation}
+  \label{eq:tangential-vect}
+  \ten{t}_i = \frac{\ten{v}_{ij} - (\ten{v}_{ij} \cdot \ten{n}_i) \ten{n}_i}{|\ten{v}_{ij} - (\ten{v}_{ij} \cdot \ten{n}_i) \ten{n}_i|}.
+\end{equation}
+
+The tangential force is coupled to the normal force through the Coulomb's law,
+\begin{equation}
+  \label{eq:Coulomb-law}
+  \ten{F}_{i}^{t} = \min(\mu |\ten{F}_{i}^{n}|, |\ten{F}_{i}^{t}|) \
+  \frac{\ten{F}_{i}^{t}}{|\ten{F}_{i}^{t}|}.
+\end{equation}
+This allows to impose the sliding friction condition between the interacting
+solids. Finally, the total force acting on the particle $i$ due to the
+interaction with body $B$ is:
+\begin{equation}
+  \label{eq:contact-force}
+  \ten{F}_{i}^{cont} = \ten{F}_{i}^{n} + \ten{F}_{i}^{t}
+\end{equation}
+
+\begin{figure}[!htpb]
+  \centering
+  \includegraphics[width=0.3\textwidth]{images/contact_force/contact_force_description_3}
+  \caption{Force transfer to the secondary particles $j$ from the primary body particle $i$}
+\label{fig:secondary_particle_contact_foce_transfer}
+\end{figure}
+An equal and opposite force of the same magnitude is applied to the closest
+secondary particle $j$ of $i$,
+\begin{equation}
+  \label{eq:contact-force}
+  \ten{F}_{j}^{cont} = - \ten{F}_{i}^{cont}
+\end{equation}
+
+% The force on the particle $j$ is evaluated, on the
+% body belonging to the secondary surface is as follows. Particles belonging to
+% the secondary surface ($j$) which are at a distance less than the initial
+% spacing ($l_0$) share the force exerted on particle i, as following:
+% \begin{equation}
+%   \label{eq:cf-overlap}
+%   F^{ij} = - F^{i} w^{ij},
+% \end{equation}
+% where $w^{ij}$ is defined as
+% \begin{equation}
+%   \label{eq:cf-overlap}
+%   w^{ij} = \frac{n^{i} \cdot \hat{\ten{r}}^{ij}}{\sum_j n^{i} \cdot \hat{\ten{r}}^{ij}}
+% \end{equation}
+
+The current contact force model is sensitive towards the primary body chosen
+to compute the forces, i.e., the force acting on the particles is not the same
+when the primary bodies are interchanged. In the current work we have explored
+the behaviour of the current contact force model when different bodies are
+chosen as primary and secondary. Simulations such as, a rectangular solid
+sliding down an inclined plane, and a symmetric collision between elastic
+solids are two examples, where we have enquired how the bodies would behave
+when different bodies are chosen as primary, as shown in
+\cref{fig:primary-secondary-demonstration}.
+\begin{figure}[!htpb]
+  \centering
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/primary_vs_secondary/sliding}
+    \subcaption{A sliding body.}%\label{fig:rings:ipst-nu-0.47-0}
+  \end{subfigure}
+  \begin{subfigure}{0.48\textwidth}
+    \centering
+    \includegraphics[width=1.0\textwidth]{images/primary_vs_secondary/symmetric_collision}
+    \subcaption{A symmetric collision between rectangular solids.}%\label{fig:rings:ipst-nu-0.47-1}
+  \end{subfigure}
+  \caption{Examples used to explore the importance of choosing a primary.}
+\label{fig:primary-secondary-demonstration}
+\end{figure}
+
+
+
+\newpage
+~\newpage
 
 % \todoin{
 % \begin{itemize}
@@ -1240,3 +1319,23 @@ and experimental results.
 %%% TeX-master: "paper"
 %%% fill-column: 78
 %%% End:
+
+
+
+\begin{enumerate}
+\item DOF
+\item Variables to describe the state
+\item Governing equations
+\item Discretization
+\item Two coordinate system (Particle positions about these two)
+\item Updated state
+\item Rotation matrix
+\item (a) Describe how the particles are translated to gloabl system from
+  local using rotation matrix. Use a figure.
+\item (b) Particle positions about new Rr
+\item $\omega$ and $\ten{R}$ relation
+\item Relation $I$ and $\ten{R}$
+\item Integration of governing equations
+\item Advantages of representing the body with just boundary particles and
+  speed up
+\end{enumerate}

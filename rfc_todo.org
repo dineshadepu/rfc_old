@@ -1,0 +1,7 @@
+* Coupling algorithm
+
+1. How to evolve $rho_fsi$ of the rigid body?
+2. How to set p_fsi?
+3. Should we clamp the pressure of the rigid body?
+5. How to compute the acceleration of the rigid body particles?
+4. Simple benchmarks to test the rigid fluid coupling algorithm

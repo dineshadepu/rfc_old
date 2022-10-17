@@ -16,6 +16,7 @@ from pysph.solver.application import Application
 from pysph.sph.scheme import SchemeChooser
 
 from rigid_fluid_coupling import RigidFluidCouplingScheme
+from fluids import CTVFScheme, GTVFScheme
 
 from pysph.examples.solid_mech.impact import add_properties
 from pysph.examples.rigid_body.sphere_in_vessel_akinci import (create_boundary,
@@ -204,7 +205,28 @@ class DamBreak3D(Application):
                                        gz=self.gz,
                                        nu=0.,
                                        h=self.h)
-        s = SchemeChooser(default='rfc', rfc=rfc)
+
+        ctvf = CTVFScheme(fluids=['fluid'],
+                          boundaries=['tank'],
+                          dim=3,
+                          rho0=self.fluid_density,
+                          p0=self.p0,
+                          c0=self.c0,
+                          gz=self.gz,
+                          nu=0.,
+                          h=self.h)
+
+        gtvf = GTVFScheme(fluids=['fluid'],
+                          boundaries=['tank'],
+                          dim=3,
+                          rho0=self.fluid_density,
+                          p0=self.p0,
+                          c0=self.c0,
+                          gz=self.gz,
+                          nu=0.,
+                          h=self.h)
+
+        s = SchemeChooser(default='rfc', rfc=rfc, ctvf=ctvf, gtvf=gtvf)
         return s
 
     def configure_scheme(self):

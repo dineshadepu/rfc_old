@@ -37,6 +37,7 @@ class Dinesh2022HydrostaticTank2D(Application):
         self.fluid_density = 1000.0
         self.fluid_spacing = spacing
 
+        self.tank_denstiy = 1000
         self.tank_length = 150. * 1e-3
         self.tank_height = 140 * 1e-3
         self.tank_spacing = spacing
@@ -72,10 +73,19 @@ class Dinesh2022HydrostaticTank2D(Application):
                            default=5. * 1e-3,
                            help="Spacing between particles")
 
+        group.add_argument("--tank-rho",
+                           action="store",
+                           type=float,
+                           dest="tank_rho",
+                           default=1000.,
+                           help="Density of tank")
+
     def consume_user_options(self):
         spacing = self.options.dx
         self.fluid_spacing = spacing
         self.tank_spacing = spacing
+
+        self.tank_density = self.options.tank_rho
 
     def create_particles(self):
 
@@ -98,12 +108,13 @@ class Dinesh2022HydrostaticTank2D(Application):
         # set the initial pressure
         fluid.p[:] = - self.fluid_density * self.gy * (max(fluid.y) - fluid.y[:])
 
+        m_tank = self.tank_density * self.tank_spacing**self.dim
         tank = get_particle_array(x=xt,
                                   y=yt,
-                                  m=m_fluid,
+                                  m=m_tank,
                                   m_fluid=m_fluid,
                                   h=self.h,
-                                  rho=self.fluid_density,
+                                  rho=self.tank_density,
                                   rad_s=self.fluid_spacing/2.,
                                   contact_force_is_boundary=1.,
                                   name="tank",
@@ -126,7 +137,8 @@ class Dinesh2022HydrostaticTank2D(Application):
     def create_scheme(self):
         rfc = RigidFluidCouplingScheme(rigid_bodies=None,
                                        fluids=['fluid'],
-                                       boundaries=['tank'],
+                                       rigid_bodies_dynamic=None,
+                                       rigid_bodies_static=['tank'],
                                        dim=self.dim,
                                        rho0=self.fluid_density,
                                        p0=self.p0,

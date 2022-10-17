@@ -76,22 +76,6 @@ def get_files_at_given_times_from_log(files, times, logfile):
     return result
 
 
-class ClampWallPressure(Equation):
-    r"""Clamp the wall pressure to non-negative values.
-    """
-    def post_loop(self, d_idx, d_p):
-        if d_p[d_idx] < 0.0:
-            d_p[d_idx] = 0.0
-
-
-class ClampWallPressureFSI(Equation):
-    r"""Clamp the wall pressure to non-negative values.
-    """
-    def post_loop(self, d_idx, d_p_fsi):
-        if d_p_fsi[d_idx] < 0.0:
-            d_p_fsi[d_idx] = 0.0
-
-
 class ContinuityEquation(Equation):
     r"""Density rate:
 
@@ -108,7 +92,7 @@ class ContinuityEquation(Equation):
         d_arho[d_idx] += fac*vijdotdwij
 
 
-class ContinuityEquationFSI(Equation):
+class ContinuityEquationRB(Equation):
     r"""Density rate:
 
     :math:`\frac{d\rho_a}{dt} = \sum_b m_b \boldsymbol{v}_{ab}\cdot
@@ -118,48 +102,18 @@ class ContinuityEquationFSI(Equation):
     def initialize(self, d_idx, d_arho):
         d_arho[d_idx] = 0.0
 
-    def loop(self, d_idx, d_rho, d_arho, s_idx, s_m_fsi, s_rho_fsi, DWIJ, VIJ):
+    def loop(self, d_idx, d_rho, d_arho, s_idx, s_rho, s_m, DWIJ, VIJ):
         vijdotdwij = DWIJ[0]*VIJ[0] + DWIJ[1]*VIJ[1] + DWIJ[2]*VIJ[2]
-
-        fac = d_rho[d_idx] * s_m_fsi[s_idx] / s_rho_fsi[s_idx]
+        fac = d_rho[d_idx] * s_m[s_idx] / s_rho[s_idx]
         d_arho[d_idx] += fac*vijdotdwij
 
 
-class SolidWallPressureBCFSI(Equation):
-    r"""Solid wall pressure boundary condition from Adami and Hu (transport
-    velocity formulation).
-
+class ClampWallPressureRB(Equation):
+    r"""Clamp the wall pressure to non-negative values.
     """
-    def __init__(self, dest, sources, gx=0.0, gy=0.0, gz=0.0):
-        self.gx = gx
-        self.gy = gy
-        self.gz = gz
-
-        super(SolidWallPressureBCFSI, self).__init__(dest, sources)
-
-    def initialize(self, d_idx, d_p_fsi):
-        d_p_fsi[d_idx] = 0.0
-
-    def loop(self, d_idx, s_idx, d_p_fsi, s_p, s_rho, d_au, d_av, d_aw, WIJ,
-             XIJ):
-
-        # numerator of Eq. (27) ax, ay and az are the prescribed wall
-        # accelerations which must be defined for the wall boundary
-        # particle
-        gdotxij = (self.gx - d_au[d_idx])*XIJ[0] + \
-            (self.gy - d_av[d_idx])*XIJ[1] + \
-            (self.gz - d_aw[d_idx])*XIJ[2]
-
-        # max_val = max(0., gdotxij)
-        max_val = gdotxij
-        d_p_fsi[d_idx] += s_p[s_idx] * WIJ + s_rho[s_idx] * max_val * WIJ
-
-    def post_loop(self, d_idx, d_wij, d_p_fsi, d_rho_fsi):
-        # extrapolated pressure at the ghost particle
-        if d_wij[d_idx] > 1e-14:
-            d_p_fsi[d_idx] /= d_wij[d_idx]
-
-        # d_rho_fsi[d_idx] /= d_wij[d_idx]
+    def post_loop(self, d_idx, d_p_fsi):
+        if d_p_fsi[d_idx] < 0.0:
+            d_p_fsi[d_idx] = 0.0
 
 
 class MomentumEquationPressureGradient(Equation):
@@ -188,111 +142,30 @@ class MomentumEquationPressureGradient(Equation):
         d_aw[d_idx] += tmp * DWIJ[2]
 
 
-class MomentumEquationPressureGradientBoundary(Equation):
-    def loop(self, d_rho, s_rho, d_idx, s_idx, d_p, s_p, s_m_fluid, d_au, d_av,
-             d_aw, DWIJ, XIJ, RIJ, SPH_KERNEL, HIJ):
+class ForceOnFluidDuetoRigidBody(Equation):
+    def __init__(self, dest, sources, gx=0.0, gy=0.0, gz=0.0):
+        self.gx = gx
+        self.gy = gy
+        self.gz = gz
+        super(ForceOnFluidDuetoRigidBody, self).__init__(dest, sources)
+
+    def initialize(self, d_idx, d_au, d_av, d_aw):
+        d_au[d_idx] = self.gx
+        d_av[d_idx] = self.gy
+        d_aw[d_idx] = self.gz
+
+    def loop(self, d_rho, s_rho, d_idx, s_idx, d_p, s_p, s_m, d_au, d_av, d_aw,
+             DWIJ, XIJ, RIJ, SPH_KERNEL, HIJ):
         rhoi2 = d_rho[d_idx] * d_rho[d_idx]
         rhoj2 = s_rho[s_idx] * s_rho[s_idx]
 
         pij = d_p[d_idx] / rhoi2 + s_p[s_idx] / rhoj2
 
-        tmp = -s_m_fluid[s_idx] * pij
+        tmp = -s_m[s_idx] * pij
 
         d_au[d_idx] += tmp * DWIJ[0]
         d_av[d_idx] += tmp * DWIJ[1]
         d_aw[d_idx] += tmp * DWIJ[2]
-
-
-class ForceOnFluidDuetoRigidBody(Equation):
-    def __init__(self, dest, sources):
-        super(ForceOnFluidDuetoRigidBody, self).__init__(dest, sources)
-
-    def loop(self, d_rho, s_rho_fsi, d_idx, s_idx, d_p, s_p_fsi, s_m_fsi,
-             d_au, d_av, d_aw, DWIJ, XIJ, RIJ, SPH_KERNEL, HIJ):
-        rhoi2 = d_rho[d_idx] * d_rho[d_idx]
-        rhoj2 = s_rho_fsi[s_idx] * s_rho_fsi[s_idx]
-
-        pij = d_p[d_idx] / rhoi2 + s_p_fsi[s_idx] / rhoj2
-
-        tmp = -s_m_fsi[s_idx] * pij
-
-        d_au[d_idx] += tmp * DWIJ[0]
-        d_av[d_idx] += tmp * DWIJ[1]
-        d_aw[d_idx] += tmp * DWIJ[2]
-
-
-class ForceOnRigidBodyDuetoFluid(Equation):
-    """Force between a solid sphere and a SPH fluid particle.  This is
-    implemented using Akinci's[1] force and additional force from solid
-    bodies pressure which is implemented by Liu[2]
-
-    [1]'Versatile Rigid-Fluid Coupling for Incompressible SPH'
-
-    URL: https://graphics.ethz.ch/~sobarbar/papers/Sol12/Sol12.pdf
-
-    [2]A 3D Simulation of a Moving Solid in Viscous Free-Surface Flows by
-    Coupling SPH and DEM
-
-    https://doi.org/10.1155/2017/3174904
-
-
-    Note: Here forces for both the phases are added at once.
-          Please make sure that this force is applied only once
-          for both the particle properties.
-
-    """
-    def loop(self, d_idx, d_m_fsi, d_rho_fsi, d_p_fsi, s_idx, d_fx, d_fy,
-             d_fz, DWIJ, s_m, s_p, s_rho):
-        _t1 = s_p[s_idx] / (s_rho[s_idx]**2) + d_p_fsi[d_idx] / (d_rho_fsi[d_idx]**2)
-
-        d_fx[d_idx] -= d_m_fsi[d_idx] * s_m[s_idx] * _t1 * DWIJ[0]
-        d_fy[d_idx] -= d_m_fsi[d_idx] * s_m[s_idx] * _t1 * DWIJ[1]
-        d_fz[d_idx] -= d_m_fsi[d_idx] * s_m[s_idx] * _t1 * DWIJ[2]
-
-
-class RK2FluidStep(IntegratorStep):
-    def initialize(self, d_idx, d_x0, d_y0, d_z0, d_x, d_y, d_z, d_u0, d_v0,
-                   d_w0, d_u, d_v, d_w, d_rho0, d_rho):
-        d_x0[d_idx] = d_x[d_idx]
-        d_y0[d_idx] = d_y[d_idx]
-        d_z0[d_idx] = d_z[d_idx]
-
-        d_u0[d_idx] = d_u[d_idx]
-        d_v0[d_idx] = d_v[d_idx]
-        d_w0[d_idx] = d_w[d_idx]
-
-        d_rho0[d_idx] = d_rho[d_idx]
-
-    def stage1(self, d_idx, d_m, d_vol, d_x0, d_y0, d_z0, d_x, d_y, d_z, d_u0,
-               d_v0, d_w0, d_u, d_v, d_w, d_rho0, d_rho, d_au, d_av, d_aw,
-               d_arho, dt):
-        dtb2 = 0.5 * dt
-        d_x[d_idx] = d_x0[d_idx] + dtb2 * d_u[d_idx]
-        d_y[d_idx] = d_y0[d_idx] + dtb2 * d_v[d_idx]
-        d_z[d_idx] = d_z0[d_idx] + dtb2 * d_w[d_idx]
-
-        d_u[d_idx] = d_u0[d_idx] + dtb2 * d_au[d_idx]
-        d_v[d_idx] = d_v0[d_idx] + dtb2 * d_av[d_idx]
-        d_w[d_idx] = d_w0[d_idx] + dtb2 * d_aw[d_idx]
-
-        # Update densities and smoothing lengths from the accelerations
-        d_rho[d_idx] = d_rho0[d_idx] + dtb2 * d_arho[d_idx]
-        d_vol[d_idx] = d_m[d_idx] / d_rho[d_idx]
-
-    def stage2(self, d_idx, d_m, d_vol, d_x0, d_y0, d_z0, d_x, d_y, d_z, d_u0,
-               d_v0, d_w0, d_u, d_v, d_w, d_rho0, d_rho, d_au, d_av, d_aw,
-               d_arho, dt):
-        d_x[d_idx] = d_x0[d_idx] + dt * d_u[d_idx]
-        d_y[d_idx] = d_y0[d_idx] + dt * d_v[d_idx]
-        d_z[d_idx] = d_z0[d_idx] + dt * d_w[d_idx]
-
-        d_u[d_idx] = d_u0[d_idx] + dt * d_au[d_idx]
-        d_v[d_idx] = d_v0[d_idx] + dt * d_av[d_idx]
-        d_w[d_idx] = d_w0[d_idx] + dt * d_aw[d_idx]
-
-        # Update densities and smoothing lengths from the accelerations
-        d_rho[d_idx] = d_rho0[d_idx] + dt * d_arho[d_idx]
-        d_vol[d_idx] = d_m[d_idx] / d_rho[d_idx]
 
 
 class GTVFFluidStep(IntegratorStep):
@@ -544,11 +417,11 @@ class EDACEquation(Equation):
         d_ap[d_idx] += tmp*(d_p[d_idx] - s_p[s_idx])
 
 
-class EDACEquationFSI(Equation):
+class EDACEquationRB(Equation):
     def __init__(self, dest, sources, nu):
         self.nu = nu
 
-        super(EDACEquationFSI, self).__init__(dest, sources)
+        super(EDACEquationRB, self).__init__(dest, sources)
 
     def initialize(self, d_idx, d_ap):
         d_ap[d_idx] = 0.0
@@ -578,24 +451,25 @@ class EDACEquationFSI(Equation):
 
 
 class RigidFluidCouplingScheme(Scheme):
-    def __init__(self, fluids, boundaries, rigid_bodies, dim, rho0, p0, c0, h,
-                 nu, kr=1e5, kf=1e5, en=0.5, fric_coeff=0.5, gamma=7.0,
-                 gx=0.0, gy=0.0, gz=0.0, alpha=0.1, beta=0.0,
-                 kernel_choice="1", kernel_factor=3, edac_alpha=0.5):
-        if boundaries is None:
-            self.boundaries = []
-        else:
-            self.boundaries = boundaries
-
+    def __init__(self, fluids, rigid_bodies_dynamic, rigid_bodies_static,
+                 dim, rho0, p0, c0, h, nu, kr=1e5, kf=1e5,
+                 en=0.5, fric_coeff=0.5, gamma=7.0, gx=0.0, gy=0.0, gz=0.0,
+                 alpha=0.1, beta=0.0, kernel_choice="1", kernel_factor=3,
+                 edac_alpha=0.5):
         if fluids is None:
             self.fluids = []
         else:
             self.fluids = fluids
 
-        if rigid_bodies is None:
+        if rigid_bodies_dynamic is None:
             self.rigid_bodies = []
         else:
-            self.rigid_bodies = rigid_bodies
+            self.rigid_bodies_dynamic = rigid_bodies_dynamic
+
+        if rigid_bodies_static is None:
+            self.rigid_static = []
+        else:
+            self.rigid_bodies_static = rigid_bodies_static
 
         # fluids parameters
         self.edac = False
@@ -624,6 +498,8 @@ class RigidFluidCouplingScheme(Scheme):
         self.fluid_alpha = alpha
         self.beta = beta
 
+        self.fluid_coupling_model = "Akinci"
+
         self.solver = None
 
     def add_user_options(self, group):
@@ -650,8 +526,17 @@ class RigidFluidCouplingScheme(Scheme):
         add_bool_argument(group, 'edac', dest='edac', default=True,
                           help='Use pressure evolution equation EDAC')
 
+        choices = ['Akinci', 'Sun']
+        group.add_argument(
+            "--fluid-coupling-model", action="store",
+            dest='fluid_coupling_model',
+            default="Akinci",
+            choices=choices,
+            help="Fluid coupling model (one of %s)." % choices)
+
     def consume_user_options(self, options):
-        _vars = ['kr', 'kf', 'fric_coeff', 'fluid_alpha', 'edac']
+        _vars = ['kr', 'kf', 'fric_coeff', 'fluid_alpha', 'edac',
+                 'fluid_coupling_model']
         data = dict((var, self._smart_getattr(options, var)) for var in _vars)
         self.configure(**data)
 
@@ -660,40 +545,20 @@ class RigidFluidCouplingScheme(Scheme):
 
     def get_equations(self):
         # elastic solid equations
-        from pysph.sph.equation import Group
-        from pysph.sph.wc.basic import (MomentumEquation, TaitEOS)
+        from pysph.sph.wc.basic import (TaitEOS)
         from pysph.sph.wc.transport_velocity import (
             SetWallVelocity,
             MomentumEquationArtificialViscosity)
-        from pysph.sph.wc.viscosity import (LaminarViscosity)
-        from pysph.sph.basic_equations import (MonaghanArtificialViscosity,
-                                               XSPHCorrection,
-                                               VelocityGradient2D)
         from pysph.sph.wc.edac import (SolidWallPressureBC)
 
-        all = self.fluids + self.boundaries + self.rigid_bodies
-        edac_nu = self.edac_nu
+        self.rigid_bodies = (self.rigid_bodies_dynamic + self.rigid_bodies_static)
 
         stage1 = []
 
         eqs = []
         for fluid in self.fluids:
-            eqs.append(ContinuityEquation(dest=fluid,
-                                          sources=self.fluids+self.boundaries), )
-            if self.edac == True:
-                eqs.append(
-                    EDACEquation(
-                        dest=fluid, sources=self.fluids+self.boundaries, nu=edac_nu), )
-
-        if len(self.rigid_bodies) > 0:
-            for fluid in self.fluids:
-                eqs.append(
-                    ContinuityEquationFSI(dest=fluid,
-                                          sources=self.rigid_bodies), )
-                if self.edac == True:
-                    eqs.append(
-                        EDACEquationFSI(dest=fluid,
-                                        sources=self.rigid_bodies, nu=edac_nu), )
+            eqs.append(ContinuityEquation(dest=fluid, sources=self.fluids))
+            eqs.append(ContinuityEquationRB(dest=fluid, sources=self.rigid_bodies))
 
         stage1.append(Group(equations=eqs, real=False))
 
@@ -705,51 +570,36 @@ class RigidFluidCouplingScheme(Scheme):
 
         if len(self.fluids) > 0:
             tmp = []
-            if self.edac == False:
-                for fluid in self.fluids:
-                    tmp.append(
-                        TaitEOS(dest=fluid, sources=None, rho0=self.rho0, c0=self.c0,
-                                gamma=self.gamma))
+            for fluid in self.fluids:
+                tmp.append(
+                    TaitEOS(dest=fluid, sources=None, rho0=self.rho0, c0=self.c0,
+                            gamma=self.gamma))
 
-                stage2.append(Group(equations=tmp, real=False))
+            stage2.append(Group(equations=tmp, real=False))
 
         if len(self.fluids) > 0:
             tmp = []
-            for solid in self.boundaries:
+            for body in self.rigid_bodies:
                 tmp.append(
-                    SetWallVelocity(dest=solid,
+                    SetWallVelocity(dest=body,
                                     sources=self.fluids))
                 tmp.append(
-                    SolidWallPressureBC(dest=solid,
+                    SolidWallPressureBC(dest=body,
                                         sources=self.fluids,
                                         gx=self.gx,
                                         gy=self.gy,
                                         gz=self.gz))
                 tmp.append(
-                    ClampWallPressure(dest=solid, sources=None))
+                    ClampWallPressureRB(dest=body, sources=None))
 
-            for solid in self.rigid_bodies:
-                tmp.append(
-                    SetWallVelocity(dest=solid,
-                                    sources=self.fluids))
-                tmp.append(
-                    SolidWallPressureBCFSI(dest=solid,
-                                           sources=self.fluids,
-                                           gx=self.gx,
-                                           gy=self.gy,
-                                           gz=self.gz))
-                # tmp.append(
-                #     ClampWallPressureFSI(dest=solid, sources=None))
-
-            if len(tmp) > 0:
-                stage2.append(Group(equations=tmp, real=False))
+            stage2.append(Group(equations=tmp, real=False))
 
         if len(self.fluids) > 0:
             for name in self.fluids:
                 alpha = self.fluid_alpha
                 g2.append(
                     MomentumEquationPressureGradient(dest=name,
-                                                     sources=self.fluids+self.boundaries,
+                                                     sources=self.fluids,
                                                      gx=self.gx,
                                                      gy=self.gy,
                                                      gz=self.gz))
@@ -761,41 +611,43 @@ class RigidFluidCouplingScheme(Scheme):
                                                              alpha=self.fluid_alpha)
                     g2.insert(-1, eq)
 
+                # if self.fluid_coupling_model == "Sun":
                 if len(self.rigid_bodies) > 0:
                     g2.append(
-                        ForceOnFluidDuetoRigidBody(dest=name,
-                                                   sources=self.rigid_bodies))
+                        ForceOnFluidDuetoRigidBody(
+                            dest=name, sources=self.rigid_bodies))
+
             stage2.append(Group(equations=g2))
 
         #######################
         # Handle rigid bodies #
         #######################
-        if len(self.rigid_bodies) > 0:
+        if len(self.rigid_bodies_dynamic) > 0:
             g5 = []
-            for name in self.rigid_bodies:
+            for name in self.rigid_bodies_dynamic:
                 g5.append(
                     ResetForce(dest=name, sources=None))
             stage2.append(Group(equations=g5, real=False))
 
-        if len(self.rigid_bodies) > 0:
+        if len(self.rigid_bodies_dynamic) > 0:
             g5 = []
-            for name in self.rigid_bodies:
+            for name in self.rigid_bodies_dynamic:
                 g5.append(
                     ComputeContactForceNormalsMV(dest=name,
-                                                 sources=self.rigid_bodies+self.boundaries))
+                                                 sources=self.rigid_bodies))
 
             stage2.append(Group(equations=g5, real=False))
 
             g5 = []
-            for name in self.rigid_bodies:
+            for name in self.rigid_bodies_dynamic:
                 g5.append(
                     ComputeContactForceDistanceAndClosestPointAndWeightDenominatorMV(
-                        dest=name, sources=self.rigid_bodies+self.boundaries))
+                        dest=name, sources=self.rigid_bodies))
             stage2.append(Group(equations=g5, real=False))
 
-        if len(self.rigid_bodies) > 0:
+        if len(self.rigid_bodies_dynamic) > 0:
             g5 = []
-            for name in self.rigid_bodies:
+            for name in self.rigid_bodies_dynamic:
                 g5.append(
                     ComputeContactForceLinearMV(dest=name,
                                                 sources=None,
@@ -805,25 +657,25 @@ class RigidFluidCouplingScheme(Scheme):
 
             stage2.append(Group(equations=g5, real=False))
 
-        if len(self.rigid_bodies) > 0:
+        if len(self.rigid_bodies_dynamic) > 0:
             g5 = []
-            for name in self.rigid_bodies:
+            for name in self.rigid_bodies_dynamic:
                 g5.append(
                     TransferContactForceMV(dest=name,
                                            sources=self.rigid_bodies))
 
             stage2.append(Group(equations=g5, real=False))
 
-            # add the force due to fluid
-            if len(self.fluids) > 0:
-                for name in self.rigid_bodies:
-                    g5.append(ForceOnRigidBodyDuetoFluid(dest=name,
-                                                         sources=self.fluids))
+            # # add the force due to fluid
+            # if len(self.fluids) > 0:
+            #     for name in self.rigid_bodies:
+            #         g5.append(ForceOnRigidBodyDuetoFluidSun(
+            #             dest=name, sources=self.fluids))
 
         # computation of total force and torque at center of mass
-        if len(self.rigid_bodies) > 0 and len(self.rigid_bodies) > 0:
+        if len(self.rigid_bodies_dynamic) > 0:
             g6 = []
-            for name in self.rigid_bodies:
+            for name in self.rigid_bodies_dynamic:
                 g6.append(SumUpExternalForces(dest=name,
                                               sources=None,
                                               gx=self.gx,
@@ -856,7 +708,7 @@ class RigidFluidCouplingScheme(Scheme):
             if fluid not in steppers:
                 steppers[fluid] = fluidstep
 
-        for body in self.rigid_bodies:
+        for body in self.rigid_bodies_dynamic:
             if body not in steppers:
                 steppers[body] = bodystep
 

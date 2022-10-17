@@ -31,6 +31,12 @@ from rigid_body_common import (add_properties_stride,
                                ComputeContactForceDistanceAndClosestPoint,
                                ComputeContactForce)
 
+from contact_force_mohseni import (
+    ComputeContactForceNormalsMohseni,
+    ComputeContactForceDistanceAndClosestPointMohseni,
+    ComputeContactForceMohseni,
+    TransferContactForceMohseni)
+
 from contact_force_mohseni_vyas import (
     ComputeContactForceNormalsMV,
     ComputeContactForceDistanceAndClosestPointAndWeightDenominatorMV,
@@ -711,7 +717,7 @@ class RigidBody3DScheme(Scheme):
                            type=float,
                            help="Friction coefficient")
 
-        choices = ['Mohseni', 'Mohseni_Vyas']
+        choices = ['Mohseni', 'Mohseni_Vyas', 'New']
         group.add_argument(
             "--contact-force-model", action="store",
             dest='contact_force_model',
@@ -778,7 +784,54 @@ class RigidBody3DScheme(Scheme):
 
                 stage2.append(Group(equations=g5, real=False))
 
+            if len(self.rigid_bodies) > 0:
+                g5 = []
+                for name in self.rigid_bodies:
+                    g5.append(
+                        TransferContactForceMV(dest=name,
+                                               sources=self.rigid_bodies))
+
+                stage2.append(Group(equations=g5, real=False))
+
         elif self.contact_force_model == 'Mohseni_Vyas':
+            if len(self.rigid_bodies) > 0:
+                g5 = []
+                for name in self.rigid_bodies:
+                    g5.append(
+                        ComputeContactForceNormalsMV(dest=name,
+                                                   sources=self.rigid_bodies+self.boundaries))
+
+                stage2.append(Group(equations=g5, real=False))
+
+                g5 = []
+                for name in self.rigid_bodies:
+                    g5.append(
+                        ComputeContactForceDistanceAndClosestPointAndWeightDenominatorMV(
+                            dest=name, sources=self.rigid_bodies+self.boundaries))
+                stage2.append(Group(equations=g5, real=False))
+
+            if len(self.rigid_bodies) > 0:
+                g5 = []
+                for name in self.rigid_bodies:
+                    g5.append(
+                        ComputeContactForceLinearMV(dest=name,
+                                                    sources=None,
+                                                    kr=self.kr,
+                                                    kf=self.kf,
+                                                    fric_coeff=self.fric_coeff))
+
+                stage2.append(Group(equations=g5, real=False))
+
+            if len(self.rigid_bodies) > 0:
+                g5 = []
+                for name in self.rigid_bodies:
+                    g5.append(
+                        TransferContactForceMV(dest=name,
+                                               sources=self.rigid_bodies))
+
+                stage2.append(Group(equations=g5, real=False))
+
+        elif self.contact_force_model == 'New':
             if len(self.rigid_bodies) > 0:
                 g5 = []
                 for name in self.rigid_bodies:

@@ -1404,6 +1404,88 @@ class Dinesh2022HydrostaticTank2D(Problem):
         self.make_output_dir()
 
 
+class Amicarelli2015FlatBodyImpingedByWaterJet2D(Problem):
+    def get_name(self):
+        return 'amicarelli_2015_flat_body_impinged_by_water_jet_2d'
+
+    def setup(self):
+        get_path = self.input_path
+
+        cmd = 'python code/amicarelli_2015_flat_body_impinged_by_water_jet_2d.py' + backend
+
+        # Base case info
+        self.case_info = {
+            'dx_0_002': (dict(
+                scheme='rfc',
+                no_edac=None,
+                pfreq=300,
+                dx=2*1e-3,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=0.5,
+                ), 'dx=0.002 m'),
+        }
+
+        self.cases = [
+            Simulation(get_path(name), cmd,
+                       job_info=dict(n_core=n_core,
+                                     n_thread=n_thread), cache_nnps=None,
+                       **scheme_opts(self.case_info[name][0]))
+            for name in self.case_info
+        ]
+
+    def run(self):
+        self.make_output_dir()
+        self.plot_velocity()
+        self.move_figures()
+
+    def plot_velocity(self):
+        data = {}
+        for name in self.case_info:
+            data[name] = np.load(self.input_path(name, 'results.npz'))
+
+        for name in self.case_info:
+            t_experimental = data[name]['t_experimental']
+            y_cm_experimental = data[name]['y_cm_experimental']
+
+            t = data[name]['t']
+            y_cm_simulated = data[name]['y_cm_simulated']
+
+            plt.scatter(t, y_cm_simulated, s=1, label=self.case_info[name][1])
+
+        # experimental plot should be only once plotted
+        plt.plot(t_experimental, y_cm_experimental, label=self.case_info[name][1] + ' Experimental')
+
+        plt.xlabel('time')
+        plt.ylabel('')
+        plt.legend(prop={'size': 12})
+        # plt.tight_layout(pad=0)
+        plt.savefig(self.output_path('y_cm_vs_time.pdf'))
+        plt.clf()
+        plt.close()
+
+    def move_figures(self):
+        import shutil
+        import os
+
+        for name in self.case_info:
+            source = self.input_path(name)
+
+            target_dir = "manuscript/figures/" + source[8:] + "/"
+            os.makedirs(target_dir)
+            # print(target_dir)
+
+            file_names = os.listdir(source)
+
+            for file_name in file_names:
+                # print(file_name)
+                if file_name.endswith((".jpg", ".pdf", ".png")):
+                    # print(target_dir)
+                    shutil.copy(os.path.join(source, file_name), target_dir)
+
+
+
 class Qiu2017FallingSolidInWater2D(Problem):
     def get_name(self):
         return 'qiu_2017_falling_solid_in_water_2d'
@@ -1898,14 +1980,32 @@ class Dinesh2022DamBreak3d(Problem):
 
         # Base case info
         self.case_info = {
-            'dx_0_002': (dict(
+            'rfc_ctvf': (dict(
                 scheme='rfc',
                 pfreq=300,
                 kr=1e5,
                 fric_coeff=0.0,
                 fluid_alpha=0.2,
                 tf=2.,
-                ), 'dx=0.002 m'),
+                ), 'CTVF'),
+
+            'gtvf': (dict(
+                scheme='gtvf',
+                pfreq=300,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=2.,
+                ), 'GTVF'),
+
+            'ctvf': (dict(
+                scheme='ctvf',
+                pfreq=300,
+                kr=1e5,
+                fric_coeff=0.0,
+                fluid_alpha=0.2,
+                tf=2.,
+                ), 'CTVF'),
         }
 
         self.cases = [
@@ -2448,6 +2548,11 @@ if __name__ == '__main__':
         # Mohseni2021ControlledSlidingOnAFlatSurface3D,  # DEM
         De2021CylinderRollingOnAnInclinedPlane2d,  # DEM
         StackOfCylinders2D,  # Experimental validation
+
+        # ==============================
+        # Rigid fluid coupling problems
+        # ==============================
+        Amicarelli2015FlatBodyImpingedByWaterJet2D,
         Qiu2017FallingSolidInWater2D,  # RFC
         Qiu2017FallingSolidInWater3D,  # RFC
         # Qiu2017FloatingSolidInWater2D,  # RFC
@@ -2460,10 +2565,10 @@ if __name__ == '__main__':
         # DineshBouncingParticleOnAWall,
 
         # Current paper problem
-        Vyas2021ReboundKinematics
+        Vyas2021ReboundKinematics,
 
         # These are test problems for body transport under dam break 3d
-        # Dinesh2022DamBreak3d,
+        Dinesh2022DamBreak3d,
         # Dinesh2022HydrostaticTank2D,
         # Dinesh2022MultipleCubesColliding3D,
         # Dinesh2022SteadyCubesOnAWall2D,
